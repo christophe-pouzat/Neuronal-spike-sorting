@@ -1,0 +1,796 @@
+#+TITLE: Analysis of Locust Data Set
+#+AUTHOR: Christophe Pouzat
+#+EMAIL: christophe.pouzat@parisdescartes.fr
+#+LINK_HOME: http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat.html
+#+LINK_UP: http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/ReproducibleDataAnalysis/ReproducibleDataAnalysis.html
+#+BABEL: :session *R* 
+#+STYLE: <link rel="stylesheet" href="http://orgmode.org/org.css" type="text/css" />
+
+* How to proceed?
+
+The locust data set is located at the following web site: [[http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data.html][http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data.html]]. So you should start by dowloading the four file =Locust_x.tar.gz=  (where =x= = 1, 2, 3, 4) in some directory where you will perform your analysis (see second sub-section). 
+
+** Loading the script file
+We start by loading file =sorting.R= containing the sorting specific functions from the web. These functions will soon be organized as a "proper" =R= package. The =URL= of the file is =http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R= so the loading is done with
+#+srcname: load-sorting-script-file
+#+begin_src R :exports code :results output
+source("http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R")
+#+end_src
+
+** Loading the data
+The data are simply loaded, once we know where to find them and if we do not forget that they have been compressed with =gzip=. The data are stored with one file per recording channel in double format. They were sampled at 15 kHz and there is 20 s of them. Since they are compressed, we cannot read them directly into =R= from the depository nd we must download them first:
+#+srcname: dowload-locust-data-set
+#+begin_src R :exports code :results silent
+  reposName <- "http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/"
+  dN <- paste("Locust_",1:4,".dat.gz",sep="")
+  sapply(1:4, function(i)
+         download.file(paste(reposName,dN[i],sep=""),
+                       dN[i],mode="wb")
+         )
+#+end_src
+
+Once the data are in our =working directory= we can load them into our =R workspace=:
+#+srcname: load-locust-data-set
+#+begin_src R :exports code :results silent
+  nb <- 20*15000
+  lD <- sapply(dN,
+               function(n) {
+                 mC <- gzfile(n,open="rb")
+                 x <- readBin(mC,what="double",n=nb)
+                 close(mC);x
+               }
+               )
+  colnames(lD) <- paste("site",1:4)
+#+end_src
+
+We can check that our =lD= object has the correct dimension:
+#+begin_src R :exports both :results output
+dim(lD)
+#+end_src
+
+#+results:
+: [1] 300000      4
+
+* Preliminary Analysis
+
+We are going to start our analysis by some "sanity checks" to make sure that nothing "weird" happened during the recording.
+
+** Five number summary 
+We should start by getting an overall picture of the data like the one provided by the =summary= method of =R= which outputs a =5 numbers plus mean= summary. The five numbers are the =minimum=, the =first quartile=, the =median=, the =third quartile= and the =maximum=:
+#+srcname: summary-lD
+#+begin_src R :exports both :results value :colnames yes
+summary(lD)
+#+end_src
+
+#+results: summary-lD
+| site 1             | site 2             | site 3             | site 4             |
+|--------------------+--------------------+--------------------+--------------------|
+| Min.   :-9.074e+00 | Min.   :-8.229e+00 | Min.   :-6.890e+00 | Min.   :-7.347e+00 |
+| 1st Qu.:-3.714e-01 | 1st Qu.:-4.500e-01 | 1st Qu.:-5.295e-01 | 1st Qu.:-4.917e-01 |
+| Median :-2.918e-02 | Median :-3.622e-02 | Median :-4.210e-02 | Median :-3.987e-02 |
+| Mean   :-5.850e-18 | Mean   : 6.051e-18 | Mean   :-1.337e-17 | Mean   :-1.787e-17 |
+| 3rd Qu.: 3.264e-01 | 3rd Qu.: 3.959e-01 | 3rd Qu.: 4.691e-01 | 3rd Qu.: 4.312e-01 |
+| Max.   : 1.063e+01 | Max.   : 1.174e+01 | Max.   : 9.849e+00 | Max.   : 1.056e+01 |
+
+
+We see that the data range (=maximum - minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar.
+
+** Were the data normalized?
+We can check next if some processing like a division by the /standard deviation/ (SD) has been applied:
+#+srcname: check-SD-normalization-of-lD
+#+begin_src R :exports both :results value :rownames yes
+apply(lD,2,sd)
+#+end_src
+
+#+results: check-SD-normalization-of-lD
+| site 1 | 0.999999999999997 |
+| site 2 | 0.999999999999992 |
+| site 3 |                 1 |
+| site 4 | 0.999999999999798 |
+
+** Discretization step amplitude
+We clearly see that these data have been /scaled/, that is, normalized to have an SD of 1. Since the data have been digitized we can easily obtain the apparent size of the digitization set:
+#+srcname: get-digitization-setp-of-lD
+#+begin_src R :exports both :results value :rownames yes
+apply(lD,2, function(x) min(diff(sort(unique(x)))))
+#+end_src
+
+#+results: get-digitization-setp-of-lD
+| site 1 | 0.00670984507841155 |
+| site 2 | 0.00919450018793277 |
+| site 3 |   0.011888432902218 |
+| site 4 | 0.00961404212866057 |
+
+** Detecting saturation
+Before embarking into a comprehensive analysis of data that we did not record ourselves (of that we recorded so long ago that we do not remember any "remarkable" event concerning them), it can be wise to check that no amplifier or A/D card saturation occurred. We can quickly check for that by looking at the length of the longuest segment of constant value. When saturation occurs the recorded value stays for many sampling points at the same upper or lower saturating level.
+#+srcname: get-longuest-constant-value-ot-lD
+#+begin_src R :exports both :results output 
+ndL <- lapply(1:4,function(i) cstValueSgts(lD[,i]))
+sapply(ndL, function(l) max(l[2,]))
+#+end_src 
+
+#+results: get-longuest-constant-value-ot-lD
+: [1] 2 2 2 2
+
+We see that for each recording site, the longest segment of constant value is /two sampling points/ long, that is 2/15 ms. There is no ground to worry about saturation here.
+
+** Plot the data
+We are going to profit from the =time series= (=ts= and =mts= for multiple time series) objects of =R= by redefining our =lD= matrix as:
+#+scname: make-lD-an-mts
+#+begin_src R :exports code :results silent 
+lD <- ts(lD,start=0,freq=15e3)
+#+end_src
+It is then straightforward to plot the whole data set:
+#+srcname: plot-whole-lD
+#+header :width 1000 :height 1000
+#+begin_src R :file lD-whole.png :results graphics
+plot(lD)
+#+end_src
+
+#+CAPTION: The whole (20 s) locust data set.
+#+LABEL: fig:lD-whole
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lD-whole.png]]
+
+It is also good to "zoom in" and look at the data with a finer time scale:
+#+srcname: plot-first200ms-lD
+#+header :width 1000 :height 1000
+#+begin_src R :file lD-first200ms.png :results graphics
+plot(window(lD,start=0,end=0.2))
+#+end_src
+
+#+CAPTION: First 200 ms of the locust data set.
+#+LABEL: fig:lD-first200
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lD-first200ms.png]]
+
+* Data renormalization
+
+We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][median absolute deviation]] (=MAD=) based renormalization. The goal of the procedure is to scale the raw data such that the /noise SD/ is approximately 1. Since it is not straightforward to obtain a noise SD on data where both signal (/i.e./, spikes) and noise are present, we use this [[http://en.wikipedia.org/wiki/Robust_statistics][robust]] type of statistic for the SD. Luckily this is simply obtained in =R=:
+#+srcname: get-lD-mad
+#+begin_src R :exports code :results silent 
+lD.mad <- apply(lD,2,mad)
+lD <- t(t(lD)/lD.mad)
+lD <- ts(lD,start=0,freq=15e3)
+#+end_src
+where the last line of code ensures that =lD= is still an =mts= object. We can check on a plot how =MAD= and =SD= compare:
+#+srcname: site1-with-MAD-and-SD
+#+header :width 1000 :height 1000
+#+begin_src R :file site1-with-MAD-and-SD.png :results graphics
+plot(window(lD[,1],0,0.2))
+abline(h=c(-1,1),col=2)
+abline(h=c(-1,1)*sd(lD[,1]),col=4,lty=2,lwd=2)
+#+end_src
+
+#+CAPTION: First 200 ms on site 1 of the locust data set. In red: +/- the =MAD=; in dashed blue +/- the =SD=.
+#+LABEL: fig:site1-with-MAD-and-SD
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:site1-with-MAD-and-SD.png]]
+
+** A quick check that the =MAD= "does its job"
+We can check that the =MAD= does its job as a robust estimate of the /noise/ standard deviation by looking at the fraction of samples whose absolute value is larger than a multiple of the =MAD= and compare this fraction to the expected one for a normal distribution whose =SD= equals the empirical =MAD= value:
+#+srcname: check-MAD
+#+header :width 1000 :height 1000
+#+begin_src R :file check-MAD.png :results graphics
+  sdV <- seq(0.1,7,0.02)
+  fRej <- apply(lD,2,
+                function(x) {
+                  n <- length(x)
+                  sapply(sdV, function(s) sum(abs(x) > s))/n
+                }
+                )
+  fRej2 <- apply(lD,2,
+                 function(x) {
+                   n <- length(x)
+                   x <- x/sd(x)
+                   sapply(sdV, function(s) sum(abs(x) > s))/n
+                 }
+                 )
+  plot(sdV,2*pnorm(-sdV),
+       type="l",col=1,lwd=2,lty=2,
+       log="y",ylim=c(1e-4,1),
+       xlab="Treshold on |x|",ylab="Rejected fraction")
+  matlines(sdV,fRej,lty=1)
+  matlines(sdV,fRej2,lty=2)
+#+end_src
+
+#+CAPTION: Performances of =MAD= based vs =SD= based normalizations. After normalizing the data of each recording site by its =MAD= (plain colored curves) or its =SD= (dashed colored curves), the fraction of sampling whose absolute value exceeds a threshold was obtained and is compared to a pure normally distributed case (thick dashed black curve). 
+#+LABEL: fig:check-MAD
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results: check-MAD
+[[file:check-MAD.png]]
+We see that the behavior of the rejected fraction is much more homogeneous for small, as well as for large in fact, threshold values with the =MAD= normalized traces than with the =SD= normalized ones. If we consider automatic rules like the three sigmas we are going to reject fewer events (/i.e./, get fewer putative spikes) with the =SD= based normalization than with the =MAD= based one.   
+
+* Interactive data exploration
+
+Although we can't illustrate properly this /key/ step on a "static" document it is absolutely necessary to look at the data in detail using:
+#+srcname: explore-lD
+#+begin_src R :exports results  :results output
+quote(explore(lD))
+#+end_src
+
+#+results: explore-lD
+: explore(lD)
+
+Upon using this command the user is invited to move forward (typing "n" + =RETURN= or simply =RETURN=), backward (typing "f" + =RETURN=), to change the abscissa or ordinate scale, etc.
+
+* Spike detection
+
+We are going to filter the data slightly using a "box" filter of length 3. That is, the data points of the original trace are going to be replaced by the average of themselves with their two nearest neighbors. We will then scale the filtered traces such that the =MAD= is one on each recording sites and keep only the parts of the signal which above 4:
+#+srcname: filter-and-rectify-lD
+#+begin_src R :exports code :results silent
+lDf <- filter(lD,rep(1,3)/3)
+lDf.mad <- apply(lDf,2,mad,na.rm=TRUE)
+lDf <- t(t(lDf)/lDf.mad)
+thrs <- c(4,4,4,4)
+bellow.thrs <- t(t(lDf) < thrs)
+lDfr <- lDf
+lDfr[bellow.thrs] <- 0
+remove(lDf)
+#+end_src
+We can see the difference between the /raw/ trace and the /filtered and rectified/ one on which spikes are going to be detected with:
+#+srcname: compare-raw-and-filtered-lD
+#+header :width 1000 :height 1000
+#+begin_src R :file compare-raw-and-filtered-lD.png :results graphics
+plot(window(lD[,1],0,0.2))
+abline(h=4,col=4,lty=2,lwd=2)
+lines(window(ts(lDfr[,1],start=0,freq=15e3),0,0.2),col=2)
+#+end_src
+
+#+CAPTION: First 200 ms on site 1 of data set =lD=. The raw data are shown in black, the detection threshold appears in dashed blue and the filtered and rectified trace on which spike detection is going to be preformed appears in red. 
+#+LABEL: fig:compare-raw-and-filtered-lD
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:compare-raw-and-filtered-lD.png]]
+
+Spikes are then detected as local maxima on the /summed, filtered and rectified/ traces:
+#+srcname: detect-spikes
+#+begin_src R :exports code :results output
+sp1 <- peaks(apply(lDfr,1,sum),15)
+#+end_src
+
+#+results: detect-spikes
+
+The returned object, =sp1=, is essentially a vector of integer containing the indexes of the detected spikes. To facilitate handling it is in addition defined as an object of class =eventsPos= meaning that entering its name on the command line and typing returns, that is, calling the =print= method on the object gives a short description of it:
+#+srcname: print-sp1
+#+begin_src R :exports both :results output
+sp1
+#+end_src
+
+#+results: print-sp1
+: 
+: eventsPos object with indexes of 1769 events. 
+:   Mean inter event interval: 169.45 sampling points, corresponding SD: 150.2 sampling points 
+:   Smallest and largest inter event intervals: 9 and 1453 sampling points.
+
+We see that 1769 events were detected. Since the mean inter event interval is very close to the SD, the "compound process" (since it's likely to be the sum of the activities of many neurons) is essentially Poisson.  
+
+** Interactive spike detection check
+We can interactively check the detection quality with:
+#+srcname: explore-sp1
+#+begin_src R :exports results  :results output
+quote(explore(sp1,lD,col=c("black","grey50")))
+#+end_src
+
+#+results: explore-sp1
+: explore(sp1, lD, col = c("black", "grey50"))
+
+That leads to a display very similar to the one previously obtained with =explore(lD)= except that the detected events appear superposed on the raw data as red dots.
+
+** Remove useless objects
+Since we are not going to use =lDfr= anymore we can save memory by removing it:
+#+srcname: remove-lDfr
+#+begin_src R :exports code :results output
+remove(lDfr)
+#+end_src
+
+#+results: remove-lDfr
+
+** Data set split
+In order to get stronger checks for our procedure and to illustrate better how it works, we are going to split our data set in two parts, establish our model on the first and use this model on both parts:
+#+srcname: split-sp1
+#+begin_src R :exports both :results output
+(sp1E <- as.eventsPos(sp1[sp1 <= dim(lD)[1]/2]))
+(sp1L <- as.eventsPos(sp1[sp1 > dim(lD)[1]/2]))
+#+end_src
+
+#+results: split-sp1
+: 
+: eventsPos object with indexes of 892 events. 
+:   Mean inter event interval: 167.84 sampling points, corresponding SD: 146.92 sampling points 
+:   Smallest and largest inter event intervals: 10 and 1180 sampling points.
+: 
+: eventsPos object with indexes of 877 events. 
+:   Mean inter event interval: 171.01 sampling points, corresponding SD: 153.6 sampling points 
+:   Smallest and largest inter event intervals: 9 and 1453 sampling points.
+
+We see that =eventsPos= objects can be sub-set like classical vectors. We also see that the sub-setting based on total time results in set with roughly the same number of events.
+
+* Cuts
+** Events
+Once we are satisfied with our spike detection, at least in a provisory way, we proceed by making =cuts= around the detected events. That is, for each detected event we literally cut a piece of data and we do that on the four recording sites. To this end we use function =mkEvents= which in addition to an =eventPos= argument (=sp1E=) and a "raw data" argument (=lD=) takes an integer argument (=before=) stating how many sampling points we want to keep within the cut before the reference time as well as another integer argument (=after=) stating how many sampling points we want to keep within the cut after the reference time. The function returns essentially a matrix where each event is a column. The cuts on the different recording sites are put one after the other when the event is built:
+#+srcname: mkEvents-sp1
+#+begin_src R :exports code :results silent   
+evtsE <- mkEvents(sp1E,lD,14,30)
+#+end_src
+Here we have decided to keep 14 points before and 30 points after our reference times. =evtsE= is a bit more than a matrix, it is an object of class =events=, meaning that a =summary= method is available:
+#+srcname: summary-evtsE
+#+begin_src R :exports both :results output
+summary(evtsE)
+#+end_src
+
+#+results: summary-evtsE
+: 
+: events object deriving from data set: lD.
+:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 15 of the cut.
+:  There are 892 events in the object.
+
+A =print= method which calls the =plot= method is also available giving:
+#+srcname: first-200-of-evtsE
+#+header :width 1000 :height 1000
+#+begin_src R :file first-200-of-evtsE.png :results graphics
+evtsE[,1:200]
+#+end_src
+
+#+CAPTION: First 200 events of =evtsE=. Cuts from the four recording sites appear one after the other. The background (white / grey) changes with the site. In red, /robust/ estimate of the "central" event obtained by computing the pointwise median. In blue, /robust/ estimate of the scale (SD) obtained by computing the pointwise =MAD=. 
+#+LABEL: fig:first-200-of-evtsE
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:first-200-of-evtsE.png]]
+
+Like =eventsPos= objects, =events= objects can be sub-set /with respect to the rows/ like usual matrix. Notice that a rather sophisticated plot was obtained with an extremely simple command... The beauty of =R= class / method mechanism in action.
+
+** Noise
+Getting an estimate of the noise statistical properties is an essential ingredient to build respectable goodness of fit tests. In our approach "noise events" are essentially anything that is not an "event" is the sense of the previous section. I wrote essentially and not exactly since there is a little twist here which is the minimal distance we are willing to accept between the reference time of a noise event and the reference time of the last preceding and of the first following "event". We could think that keeping a cut length on each side would be enough. That would indeed be the case if /all/ events were starting from and returning to zero within a cut. But this is not the case with the cuts parameters we tool previously (that will become clear soon). You might wonder why we chose so short a cut length then. Simply to avoid having to deal with too many superposed events which are the really bothering events for anyone wanting to do proper sorting. 
+To obtain our noise events we are going to use function =mkNoise= which takes the /same/ arguments as function =mkEvents= plus two number: =safetyFactor= a number by which the cut length is multiplied and which sets the minimal distance between the reference times discussed in the previous paragraph and =size= the maximal number of noise events one wants to cut (the actual number obtained might be smaller depending on the data length, the cut length, the safety factor and the number of events).
+
+We cut next noise events with a rather large safety factor:
+#+srcname: mkNoise
+#+begin_src R :exports code :results silent
+noiseE <- mkNoise(sp1E,lD,14,30,safetyFactor=2.5,2000)
+#+end_src  
+Here =noiseE= is also an =events= object and its =summary= is:
+#+srcname: summary-noiseE
+#+begin_src R :exports both :results output
+summary(noiseE)
+#+end_src 
+
+#+results: summary-noiseE
+: 
+: events object deriving from data set: lD.
+:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 15 of the cut.
+:  There are 1375 events in the object.
+
+The reader interested in checking the effect of the =safetyFactor= argument is invited to try something like:
+#+srcname: safetyFactor-effect
+#+begin_src R :exports results :results output
+quote(noiseElowSF <- mkNoise(sp1E,lD,14,30,safetyFactor=1,2000))
+quote(plot(mean(noiseElowSF),type="l"))
+quote(lines(mean(noiseE),col=2))
+#+end_src
+
+#+results: safetyFactor-effect
+: noiseElowSF <- mkNoise(sp1E, lD, 14, 30, safetyFactor = 1, 2000)
+: plot(mean(noiseElowSF), type = "l")
+: lines(mean(noiseE), col = 2)
+
+* First jitter cancellation
+
+Since the "reference times" of our events are their detected peaks, we expect that due to both recording noise and sampling the actual event's peak will be off the apparent one. We are therefore going to realign our events on a robust estimate of the "central event", the pointwise events median (the red trace on our previous [[file:first-200-of-evtsE.png][events figure]]), before going for the clustering stage. We can perform a quick alignment using a second order Taylor expansion around the central event:
+#+srcname: align-events-on-sample-median-with-order-2-Taylor-expansion
+#+begin_src R :exports both :results output
+evtsE.med <- median(evtsE)
+evtsED <- apply(evtsE,2,function(x) c(0,diff(x,2)/2,0))
+evtsED.med <- apply(evtsED,1,median)
+evtsEDD <- apply(evtsED,2,function(x) c(0,diff(x,2)/2,0))
+evtsEDD.med <- apply(evtsEDD,1,median)
+rm(evtsED,evtsEDD)
+evtsEo2 <- alignWithProcrustes(sp1E,lD,14,30,maxIt=1,plot=FALSE)
+summary(evtsEo2)
+#+end_src 
+
+#+results: align-events-on-sample-median-with-order-2-Taylor-expansion
+:  
+: events object deriving from data set: lD.
+:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 15 of the cut.
+:  Events were realigned on median event.
+:  There are 892 events in the object.
+
+We see that a new line appeared in the =summary= of our resulting =events= object. This line, the one before the last, states that the events were realigned.
+
+* Getting "clean" events
+
+Our spike sorting has two main stages, the first one consist in estimating a =generative model= and the second one consists in using this model to build a =classifier= before applying to the data. Our =generative model= /will include superposed events/ but it is going to be built out of reasonably "clean" ones. Here by clean we mean events which are not due to a nearly simultaneous firing of two or more neurons; and simultaneity is defined on the time scale of one of our cuts. 
+
+In order to eliminate the most obvious superpositions we are going to use a rather brute force approach, looking at the sides of the central peak of our median event and checking if individual events are not too large there, that is do not exhibit extra peaks. We first define a function doing this job:
+#+srcname: goodEvtsFct-definition
+#+begin_src R :exports code :results output
+  goodEvtsFct <- function(samp,thr=3) {
+    samp.med <- apply(samp,1,median)
+    samp.mad <- apply(samp,1,mad)
+    above <- samp.med > 0
+    samp.r <- apply(samp,2,function(x) {x[above] <- 0;x})
+    apply(samp.r,2,function(x) all(x<samp.med+thr*samp.mad))
+  }
+#+end_src    
+
+#+results: goodEvtsFct-definition
+
+We then apply our new function to our realigned sample:
+#+srcname: get-good-events-in-evtsEo2
+#+begin_src R :exports code :results output
+goodEvts <- goodEvtsFct(evtsEo2,8)
+#+end_src
+
+#+results: get-good-events-in-evtsEo2
+
+Here =goodEvts= is a vector of =logical= with as many elements as events in =evtsEo2=. Elements of =goodEvts= are =TRUE= if the corresponding event of =evtsEo2= is "good" (/i.e./, not a superposition) and is =FALSE= otherwise. We can look at the first 200 good events easily with:
+
+#+srcname: first-200-good-of-evtsE
+#+header :width 1000 :height 1000
+#+begin_src R :file first-200-good-of-evtsE.png :results graphics
+evtsEo2[,goodEvts][,1:200]
+#+end_src
+
+#+CAPTION: First 200 good events of =evtsEo2=. 
+#+LABEL: fig:first-200-good-of-evtsE
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:first-200-good-of-evtsE.png]]
+
+We see that few superpositions are left but the most obvious ones of our previous [[file:first-200-of-evtsE.png][events figure]] are gone. We can also look at the src_R[:session]{sum(!goodEvts)} "bad" events with:
+
+#+srcname: bad-of-evtsE
+#+header :width 1000 :height 1000
+#+begin_src R :file bad-of-evtsE.png :results graphics
+evtsEo2[,!goodEvts]
+#+end_src
+
+#+CAPTION: Bad events of =evtsEo2=. 
+#+LABEL: fig:bad-of-evtsE
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:bad-of-evtsE.png]]
+
+* Dimension reduction
+
+** Principal component analysis
+Our events are living right now in an 180 dimensional space (our cuts are 45 sampling points long and we are working with 4 recording sites simultaneously). It turns out that it hard for most humans to perceive structures in such spaces. It also hard, not to say impossible with a realistic sample size, to estimate probability densities (which what some clustering algorithm are actually doing) in such spaces, unless one is ready to make strong assumptions about these densities. It is therefore usually a good practice to try to reduce the dimension of the [[http://en.wikipedia.org/wiki/Sample_space][sample space]] used to represent the data. We are going to that with [[http://en.wikipedia.org/wiki/Principal_component_analysis][principal component analysis]] (=PCA=), using it on our "good" events. 
+#+srcname: pca-of-evtsEo2-good
+#+begin_src R :exports code :results output
+evtsE.pc <- prcomp(t(evtsEo2[,goodEvts]))
+#+end_src
+
+#+results: pca-of-evtsEo2-good
+
+We have to be careful here since function =prcomp= assumes that the data matrix is built by stacking the events / observations as rows and not as columns like we did in our =events= object. We apply therefore the function to the =transpose= (=t()=) of our events.
+
+** Exploring =PCA= results 
+=PCA= is a rather abstract procedure to most of its users, at least when they start using it. But one way to grasp what it does is to plot the =mean event= plus or minus, say twice, each principal components like:
+#+srcname: explore-evtsEo2-PC1to4
+#+header :width 1000 :height 1000
+#+begin_src R :file explore-evtsEo2-PC1to4.png :results graphics
+layout(matrix(1:4,nr=2))
+explore(evtsE.pc,1)
+explore(evtsE.pc,2)
+explore(evtsE.pc,3)
+explore(evtsE.pc,4)
+#+end_src
+
+#+CAPTION: PCA of =evtsEo2= (for "good" events) exploration (PC 1 to 4). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 2 x PC (red), the mean - 2 x PC (blue) for each of the first 4 PCs. The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.
+#+LABEL: fig:explore-evtsEo2-PC1to4
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:explore-evtsEo2-PC1to4.png]]
+
+We can see that the first 3 PCs correspond to pure amplitude variations. An event with a large projection (=score=) on the first PC is smaller than the average event on recording sites 1, 2 and 3, but not on 4. An event with a large projection on PC 2 is larger than average on site 1, smaller than average on site 2 and 3 and identical to the average on site 4. An event with a large projection on PC 3 is larger than the average on site 4 only. PC 4 is the first principal component corresponding to a change in /shape/ as opposed to /amplitude/. A large projection on PC 4 means that the event as a shallower first valley and a deeper second valley than the average event on all recording sites.  
+
+We now look at the next 4 principal components:
+#+srcname: explore-evtsEo2-PC5to8
+#+header :width 1000 :height 1000
+#+begin_src R :file explore-evtsEo2-PC5to8.png :results graphics
+layout(matrix(1:4,nr=2))
+explore(evtsE.pc,5)
+explore(evtsE.pc,6)
+explore(evtsE.pc,7)
+explore(evtsE.pc,8)
+#+end_src
+
+#+CAPTION: PCA of =evtsEo2= (for "good" events) exploration (PC 5 to 8). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 2 x PC (red), the mean - 2 x PC (blue). The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph. 
+#+LABEL: fig:explore-evtsEo2-PC5to8
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:explore-evtsEo2-PC5to8.png]]
+
+An event with a large projection on PC 5 tends to be "slower" than the average event. An event with a large projection on PC 6 exhibits a slower kinetics of its second valley than the average event. PC 5 and 6 correspond to effects shared among recording sites. PC 7 correspond also to a "change of shape" effect on all sites except the first. Events with a large projection on PC 8 rise slightly faster and decay slightly slower than the average event on all recording site. Notice also that PC 8 has a "noisier" aspect than the other suggesting that we are reaching the limit of the "events extra variability" compared to the variability present in the background noise.
+
+This guess can be confirmed by comparing the variance of the "good" events sample with the one of the noise sample to which the variance contributed by the first 8 PCs is added:
+#+srcname: variance-comparison
+#+begin_src R :exports both :results output
+sum(evtsE.pc$sdev^2)
+sum(diag(cov(t(noiseE))))+sum(evtsE.pc$sdev[1:8]^2)
+#+end_src
+
+#+results: variance-comparison
+: [1] 721.0221
+: [1] 717.9175
+
+This near equality means that we should not include component beyond the 8th one in our analysis. That's leave the room to use still fewer components. 
+
+** Static representation of the projected data
+We can build a =scatter plot matrix= showing the projections of our "good" events sample onto the plane defined by pairs of the few first PCs:
+#+srcname: scatter-plot-matrix-projOnPCs-evtsEo2
+#+header :width 1500 :height 1500
+#+begin_src R :file scatter-plot-matrix-projOnPCs-evtsEo2.png :results graphics
+panel.dens <- function(x,...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  d <- density(x, adjust=0.5)
+  x <- d$x
+  y <- d$y
+  y <- y/max(y)
+  lines(x, y, col="grey50", ...)
+}
+pairs(evtsE.pc$x[,1:4],pch=".",gap=0,diag.panel=panel.dens)
+#+end_src 
+
+#+CAPTION: Scatter plot matrix of the projections of the good events in =evtsEo2= onto the planes defined by the first 4 PCs. The diagonal shows a smooth (Gaussian kernel based) density estimate of the projection of the sample on the corresponding PC. Using the first 8 PCs does not make finner structure visible. 
+#+LABEL: fig:scatter-plot-matrix-projOnPCs-evtsEo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:scatter-plot-matrix-projOnPCs-evtsEo2.png]]
+
+** Dynamic representation of the projected data
+
+The best way to discern structures in "high dimensional" data is to dynamically visualize them. To this end, the tool of choice is [[http://www.ggobi.org/][GGobi]], an open source software available on =Linux=, =Windows= and =MacOS=. It is in addition interfaced to =R= thanks to the [[http://cran.at.r-project.org/web/packages/rggobi/index.html][rggobi]] package. We have therefore two ways to use it: as a stand alone program after exporting the data from =R=, or directly within =R=. We are going to use it in its stand alone version here. We therefore start by exporting our data in =csv= format to our disk:
+#+srcname: export-evtsEo2-good-projected-data-to-csv
+#+begin_src R :exports code :results output
+write.csv(evtsE.pc$x[,1:8],file="evtsE.csv")
+#+end_src 
+
+#+results: export-evtsEo2-good-projected-data-to-csv
+
+What comes next is not part of this document but here is a brief description of how to get it:
++ Launch =GGobi=
++ In menu: =File= -> =Open=, select =evtsE.csv=.
++ Since the glyphs are rather large, start by changing them for smaller ones:
+ - Go to menu: =Interaction= -> =Brush=.
+ - On the Brush panel which appeared check the =Persistent= box.
+ - Click on =Choose color & glyph...=.
+ - On the chooser which pops out, click on the small dot on the upper left of the left panel.
+ - Go back to the window with the data points.
+ - Right click on the lower right corner of the rectangle which appeared on the figure after you selected =Brush=.
+ - Dragg the rectangle corner in order to cover the whole set of points.
+ - Go back to the =Interaction= menu and select the first row to go back where you were at the start.
++ Select menu: =View= -> =Rotation=.
++ Adjust the speed of the rotation in order to see things properly.
+
+You should easily discern 10 rather well separated clusters. Meaning that an automatic clustering with 10 clusters on the first 3 principal components should do the job.
+
+* Clustering
+
+** k-means clustering
+
+Since our dynamic visualization shows 10 well separated clusters in 3 dimension, a simple [[http://en.wikipedia.org/wiki/K-means_clustering][k-means]] should do the job:
+#+srcname: cluster-with-k-means
+#+begin_src R :exports code :results output
+set.seed(20061001,kind="Mersenne-Twister")
+km10 <- kmeans(evtsE.pc$x[,1:3],centers=10,iter.max=100,nstart=100)
+c10 <- km10$cluster
+#+end_src
+
+#+results: cluster-with-k-means
+
+Since function =kmeans= of =R= does use a random initialization, we set the seed (as well as the =kind=) of our pseudo random number generator in order to ensure full reproducibility. In order to ensure reproducibility even if another seed is used as well as to facilitate the interpretation of the results, we "order" the clusters by "size" using the integrated absolute value of the central / median event of each cluster as a measure of its size.
+
+#+srcname: order-clusters
+#+begin_src R :exports code :results output
+cluster.med <- sapply(1:10, function(cIdx) median(evtsEo2[,goodEvts][,c10==cIdx]))
+sizeC <- sapply(1:10,function(cIdx) sum(abs(cluster.med[,cIdx])))
+newOrder <- sort.int(sizeC,decreasing=TRUE,index.return=TRUE)$ix
+cluster.mad <- sapply(1:10, function(cIdx) {ce <- t(evtsEo2)[goodEvts,];ce <- ce[c10==cIdx,];apply(ce,2,mad)})
+cluster.med <- cluster.med[,newOrder]
+cluster.mad <- cluster.mad[,newOrder]
+c10b <- sapply(1:10, function(idx) (1:10)[newOrder==idx])[c10]
+#+end_src 
+
+#+results: order-clusters
+
+** Results inspection with =GGobi=
+
+We start by checking our clustering quality with =GGobi=. To this end we export the data and the labels of each event:
+#+srcname: export-k-means-results-to-csv
+#+begin_src R :exports code :results output
+write.csv(cbind(evtsE.pc$x[,1:3],c10b),file="evtsEsorted.csv")
+#+end_src
+
+#+results: export-k-means-results-to-csv
+
+Again the dynamic visualization is not part of this document, but here is how to get it:
++ Load the new data into GGobi like before.
++ In menu: =Display= -> =New Scatterplot Display=, select =evtsEsorted.csv=.
++ Change the glyphs like before.
++ In menu: =Tools= -> =Color Schemes=, select a scheme with 10 colors, like =Spectral=, =Spectral 10=.
++ In menu: =Tools= -> =Automatic Brushing=, select =evtsEsorted.csv= tab and, within this tab, select variable =c10b=. Then click on =Apply=.
++ Select =View= -> =Rotation= like before and see your result. 
+
+** Cluster specific plots
+
+Another way to inspect the clustering results is to look at cluster specific events plots:
+#+srcname: events-clusters1to4
+#+header :width 1500 :height 1500
+#+begin_src R :file events-clusters1to4.png :results graphics
+layout(matrix(1:4,nr=4))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==1],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==2],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==3],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==4],y.bar=5)
+#+end_src
+
+#+CAPTION: First 4 clusters. Cluster 1 at the top, cluster 4 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
+#+LABEL: fig:events-clusters1to4
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:events-clusters1to4.png]]
+
+Notice the increased =MAD= on the rising phase of cluster 2 on the first recording site. A sing of misalignment of the events of this cluster.
+
+#+srcname: events-clusters5to8
+#+header :width 1500 :height 1500
+#+begin_src R :file events-clusters5to8.png :results graphics
+layout(matrix(1:4,nr=4))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==5],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==6],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==7],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==8],y.bar=5)
+#+end_src
+
+#+CAPTION: Next 4 clusters. Cluster 5 at the top, cluster 8 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
+#+LABEL: fig:events-clusters5to8
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:events-clusters5to8.png]]
+
+Cluster 5 has few events while some "subtle" superpositions are present in cluster 7.
+
+#+srcname: events-clusters9to10
+#+header :width 1500 :height 750
+#+begin_src R :file events-clusters9to10.png :results graphics
+layout(matrix(1:2,nr=2))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==9],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==10],y.bar=5)
+#+end_src
+
+#+CAPTION: Last 2 clusters. Cluster 9 at the top, cluster 10 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
+#+LABEL: fig:events-clusters9to10
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:events-clusters9to10.png]]
+
+Cluster 10 exhibits an extra variability on sites 1 and 4 around its first valley and its peak.
+
+* Cluster specific events realignment
+
+** Recursive alignment
+Now that we have clusters looking essentially reasonable, we can proceed with a cluster specific events realignment. We are going to do that iteratively alternating between:
++ Estimation of the central cluster event
++ Alignment of individual events on the central event
+We stop when two successive central event estimations are close enough to each other. Here the distance between to estimations is defined as the maximum of the absolute value of their pointwise difference. The yardstick used to decide if the distance is small enough is an estimation of the pointwise standard error defined as the MAD divided by the square root of the number of events in the cluster. The routine we use next =alignWithProcrustes= generates automatically plots (per default) showing the progress of the iterative procedure. These plots do not appear in the present document. The numerical summary appearing while the procedure runs appears bellow. After each iteration the maximum of the absolute of the median difference (multiplied by the square root of the number of events and divided by the =MAD=) is written together with the maximum allowed value. While the scaled difference is larger than the maximum allowed value the iterative procedure proceeds. 
+#+srcname: align-events-on-cluster-median
+#+begin_src R :exports code :results output
+  ujL <- lapply(1:length(unique(c10b)),
+                function(cIdx)
+                alignWithProcrustes(sp1E[goodEvts][c10b==cIdx],lD,14,30)
+                )
+#+end_src
+
+
+#+begin_example
+ Template difference: 0.938, tolerance: 1
+_______________________
+Template difference: 1.244, tolerance: 1
+_______________________
+Template difference: 0.822, tolerance: 1
+_______________________
+Template difference: 1.073, tolerance: 1
+_______________________
+Template difference: 0.239, tolerance: 1
+_______________________
+Template difference: 1.957, tolerance: 1
+_______________________
+Template difference: 0.449, tolerance: 1
+_______________________
+Template difference: 1.484, tolerance: 1
+_______________________
+Template difference: 0.623, tolerance: 1
+_______________________
+Template difference: 1.557, tolerance: 1
+_______________________
+Template difference: 0.196, tolerance: 1
+_______________________
+Template difference: 1.081, tolerance: 1
+_______________________
+Template difference: 0.257, tolerance: 1
+_______________________
+Template difference: 1.71, tolerance: 1
+_______________________
+Template difference: 1.126, tolerance: 1
+_______________________
+Template difference: 0.611, tolerance: 1
+_______________________
+Template difference: 1.723, tolerance: 1
+_______________________
+Template difference: 1.362, tolerance: 1
+_______________________
+Template difference: 0.828, tolerance: 1
+_______________________
+Template difference: 1.198, tolerance: 1
+_______________________
+Template difference: 1.049, tolerance: 1
+_______________________
+Template difference: 0.422, tolerance: 1
+_______________________
+#+end_example
+Here a change in the template difference from a value smaller than 1 to a value larger than 1 means that a new cluster is considered (we are processing the 10 clusters one after the other).
+
+We can now compare the events of cluster 2 before and after cluster specific realignment:
+#+srcname: events-clusters-2-with-without-alignment
+#+header :width 1500 :height 750
+#+begin_src R :file events-clusters-2-with-without-alignment.png :results graphics
+layout(matrix(1:2,nr=2))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==2],y.bar=5)
+plot(ujL[[2]],y.bar=5)
+#+end_src
+
+#+CAPTION: Events from cluster 2 before (top) and after (bottom) realignment. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
+#+LABEL: fig:events-clusters-2-with-without-alignment
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:events-clusters-2-with-without-alignment.png]]
+
+The extra variability in the rising phase on site 1 as been suppressed by realignment. 
+
+** Summary plot
+
+We can summarize our estimation procedure so far by plotting a matrix of "templates" each row corresponding to a recording site, each column to a cluster. The construction of this figure requires the installation of [[http://cran.at.r-project.org/web/packages/ggplot2/index.html][ggplot2]]:
+#+srcname: template-summary-figure
+#+header :width 1500 :height 1500
+#+begin_src R :file template-summary-figure.png :results output graphics
+  library(ggplot2)
+  template.med <- sapply(1:10,function(i) median(ujL[[i]]))
+  template.mad <- sapply(1:10, function(i) apply(ujL[[i]],1,mad))
+  templateDF <- data.frame(x=rep(rep(rep((1:45)/15,4),10),2),
+                           y=c(as.vector(template.med),as.vector(template.mad)),
+                           channel=as.factor(rep(rep(rep(1:4,each=45),10),2)),
+                           template=as.factor(rep(rep(1:10,each=180),2)),
+                           what=c(rep("mean",180*10),rep("SD",180*10))
+                           )
+  print(qplot(x,y,data=templateDF,
+              facets=channel ~ template,
+              geom="line",colour=what,
+              xlab="Time (ms)",
+              ylab="Amplitude",
+              size=I(0.5)) +
+        scale_x_continuous(breaks=0:3)
+        )
+        
+#+end_src
+
+#+CAPTION: Summary plot with the 10 templates corresponding to the robust estimate of the mean of each cluster. A robust estimate of the clusters' =SD= is also shown. All graphs are on the same scale to facilitate comparison. Columns correspond to clusters and rows to recording sites.
+#+LABEL: fig:template-summary-figure
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:template-summary-figure.png]]
+
+
