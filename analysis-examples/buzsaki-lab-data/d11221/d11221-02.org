@@ -1,0 +1,1598 @@
+# -*- org-confirm-babel-evaluate: nil -*-
+#+TITLE: Analysis of d11221.002 Data Set
+#+AUTHOR: Christophe Pouzat and Felix Franke
+#+BABEL: :session *R* 
+#+STYLE: <link rel="stylesheet" title="Standard" href="http://orgmode.org/worg/style/worg.css" type="text/css" />
+#+STYLE: <link rel="alternate stylesheet" title="Zenburn" href="http://orgmode.org/worg/style/worg-zenburn.css" type="text/css" />
+#+STYLE: <link rel="alternate stylesheet" title="Classic" href="http://orgmode.org/worg/style/worg-classic.css" type="text/css" />
+#+STYLE: <link rel="stylesheet" href="http://orgmode.org/css/lightbox.css" type="text/css" media="screen" />
+
+* The data
+
+** Location and origin
+The data set =d11221.002.dat= is contained in folder =d11221= which is freely available (after registration) from the [[http://crcns.org/][Collaborative Research in Computational Neuroscience]] (CRCNS) web site. It is located in folder [[http://crcns.org/data-sets/hc/hc-1][hc-1]]. I'm assuming here that the data set has been dowloaded and compressed with =gzip=.
+
+** Information about the data
+This data set was contributed by Gyorgy Buzsáki lab, Rutgers University. This data set was used in [[http://jn.physiology.org/content/84/1/401.long][Henze et al, 2000]].
+The data set is made of recordings on 6 channels:
++ channels 1, 2, 3 and 4 are the four recording sites of a tetrode
++ channel 5 or 6 is an intracellular recording from one of the neurons recorded by the tetrode.
+The sampling rate was 20 kHz. The data were amplified 1000 times. This stuff is what is reported in the =d11221.002.xml= file associated with the data (we applied a shift of one here since in the xml file channel numbers start at 0).
+
+** Loading the data
+The data are simply loaded, once we know where to find them and if we do not forget that they have been compressed with =gzip=. We will assume here that the data are located in =R='s =working directory=:
+#+begin_src R :exports code :results silent
+  dN <- "d11221.002.dat.gz"
+  nb <- 6*10000000
+  mC <- gzfile(dN,open="rb")
+  d1 <- matrix(readBin(mC,what="int",size=2,n=nb),nr=6)
+  close(mC)
+#+end_src
+ 
+We can check that we have loaded the whole set since in that case the number of columns of our matrix =d1= should be smaller than =10e6=:
+#+begin_src R :exports both :results output
+dim(d1)
+#+end_src 
+
+#+results:
+: [1]       6 7500000
+
+So everthing was loaded. In terms of recording duration we get (in minutes):
+#+begin_src R :exports both :results output
+dim(d1)[2]/2e4/60
+#+end_src
+
+#+results:
+: [1] 6.25
+
+We can quickly check that we did not commit any major mistake while loading the data by looking at one second of intracellular trace in the middle of the set (in pratice we tried both channel 5 and 6 to see that channel 5 is the intracellular one):
+#+header :width 5000 :height 5000
+#+begin_src R :file ten-sec-intra.png :results graphics
+plot(window(ts(d1[5,],start=0,freq=2e4),120,130),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: Ten seconds of recording of channel 5 (the intracellular channel) of  data set =d11221.002=. The snapshot is from the central part of the recording.
+#+LABEL: fig:ten-sec-intra
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:ten-sec-intra.png]]
+
+We do the same for the extracellular channels, except that for clarity we plot only one second of data since they are not high-pass filtered:
+#+header :width 5000 :height 5000
+#+begin_src R :file one-sec-extra.png :results graphics
+plot(window(ts(t(d1[1:4,]),start=0,freq=2e4),120,121),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: One second of recording of channels 1 to 4 (the tetrode channels) of  data set =d11221.002=. The snapshot is from the central part of the recording.
+#+LABEL: fig:one-sec-extra
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:one-sec-extra.png]]
+
+** Five numbers data summary
+We get our classical five numbers plus mean data summary:
+#+begin_src R :exports both :results value :colnames yes
+summary(t(d1[1:5,]))
+#+end_src
+
+#+results:
+| V1              | V2               | V3               | V4               | V5             |
+|-----------------+------------------+------------------+------------------+----------------|
+| Min.   :-8288.0 | Min.   :-7937.00 | Min.   :-7890.00 | Min.   :-7960.00 | Min.   :-14458 |
+| 1st Qu.: -599.0 | 1st Qu.: -409.00 | 1st Qu.: -429.00 | 1st Qu.: -411.00 | 1st Qu.:-11488 |
+| Median : -212.0 | Median :  -24.00 | Median :  -40.00 | Median :  -32.00 | Median :-10530 |
+| Mean   : -199.2 | Mean   :  -10.04 | Mean   :  -25.51 | Mean   :  -21.12 | Mean   :-10580 |
+| 3rd Qu.:  191.0 | 3rd Qu.:  379.00 | 3rd Qu.:  368.00 | 3rd Qu.:  359.00 | 3rd Qu.: -9778 |
+| Max.   : 7212.0 | Max.   : 7286.00 | Max.   : 7473.00 | Max.   : 7334.00 | Max.   :  4523 |
+
+We see that the four extracellular channels making the tetrode (columns labeled =V1= to =V4= in the above table) have similar summaries for the last 3 but the first one has lower values -- strange. The summary of the intracellular channel follows a different pattern (column =V5=). 
+
+** Data selection for generative model estimation
+
+We are going to work with the first minute of acquired data to estimate our generative model:
+#+begin_src R :exports code :results output
+  lD <- window(ts(t(d1[1:4,]),start=0,freq=2e4),0,60)
+  rm(d1)
+#+end_src
+
+#+results:
+
+* The software
+We start by loading file sorting.R containing the sorting specific functions from the web. These functions will soon be organized as a "propoper" R package. The URL of the file is http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R so the loadig is done with :
+#+begin_src R :exports code :results output
+  source("http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R")
+#+end_src 
+
+#+results:
+
+* Data pre-processing
+
+** Detailed approach
+Since the extracellular data were not high-pass filtered we will try our "usual approach", run the analysis on their derivatives ([[http://www.emglab.net/emglab/Publications/Documents/ADCE.pdf][McGill et al, 1985]]) since taking derivatives high-pass filter the data and reduces spike duration which is good when one deals with overlaps.
+#+begin_src R :exports code :results output
+lDd <- apply(lD,2,function(x) c(0,diff(x,2)/2,0))
+lDd <- ts(lDd,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We get a summary of our derivatives:
+#+begin_src R :exports both :results value :colnames yes
+summary(lDd)
+#+end_src
+
+#+results:
+| Series 1           | Series 2           | Series 3           | Series 4           |
+|--------------------+--------------------+--------------------+--------------------|
+| Min.   :-5.920e+02 | Min.   :-6.040e+02 | Min.   :-7.305e+02 | Min.   :-8.055e+02 |
+| 1st Qu.:-1.950e+01 | 1st Qu.:-2.300e+01 | 1st Qu.:-2.100e+01 | 1st Qu.:-2.000e+01 |
+| Median : 0.000e+00 | Median : 0.000e+00 | Median : 0.000e+00 | Median : 0.000e+00 |
+| Mean   : 5.204e-04 | Mean   : 2.458e-04 | Mean   : 4.437e-04 | Mean   : 6.029e-04 |
+| 3rd Qu.: 1.950e+01 | 3rd Qu.: 2.300e+01 | 3rd Qu.: 2.100e+01 | 3rd Qu.: 2.000e+01 |
+| Max.   : 6.430e+02 | Max.   : 5.885e+02 | Max.   : 5.860e+02 | Max.   : 7.490e+02 |
+
+And we can plot the first 10 seconds:
+#+header :width 5000 :height 5000
+#+begin_src R :file ten-sec-lDd.png :results graphics
+plot(window(lDd,0,10),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: First 10 sec of the first derivative of recording of channels 1 to 4 (the tetrode channels) of  data set =d11221.002=.
+#+LABEL: fig:ten-sec-lDd
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:ten-sec-lDd.png]]
+
+Here explore the data interactively is a must:
+#+srcname: explore-lDd
+#+begin_src R :exports code  :results output :eval never
+explore(lDd)
+#+end_src
+
+This exploration shows strange LFP like waves around 6.5, 16, 20.5, 28.5, 31.5, 40, 44.5, 57 s. 
+
+
+*** An attempt to suppress LFPs
+
+Here is an attempt to get rid of them focusing on the data in time interval [6,7].
+#+begin_src R :exports code :results output
+  lDdw <- window(lDd,6,7)
+#+end_src
+
+#+results:
+
+*** Box filter
+
+We can try box filters with several window lengths to match the low frequency pattern:
+#+begin_src R :exports code :results output
+  lDdwf200 <- filter(lDdw,rep(1,201)/201)
+  lDdwf100 <- filter(lDdw,rep(1,101)/101)
+  lDdwf50 <- filter(lDdw,rep(1,51)/51)
+#+end_src
+
+#+results:
+
+We can plot the "original" data from the thirs recording site together with the different filtered versions:
+#+header :width 5000 :height 5000
+#+begin_src R :file lDd-and-filtered-versions.png :results graphics
+  plot(window(lDdw[,3],6.55,6.6),ylab="",xlab="Time (s)",
+       main="",col="grey70")
+  lines(window(lDdwf200[,3],6.55,6.6),col=1,lwd=2,lty=3)
+  lines(window(lDdwf100[,3],6.55,6.6),col=4,lwd=2,lty=2)
+  lines(window(lDdwf50[,3],6.55,6.6),col=2,lwd=2,lty=1)
+#+end_src
+
+#+CAPTION: 50 ms of the derivative data on site 3 (grey) together with box filtered versions of it obtained with a box length of 10 ms (201 sampling points, dotted black), 5 ms (101 sampling points, dashed blue) and 2.5 ms (51 sampling points, red). 
+#+LABEL: fig:lDd-and-filtered-versions
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lDd-and-filtered-versions.png]]
+
+*** Gaussian filter
+As an alternative we can consider a Gaussian filter (which has better spectral properties):
+
+#+begin_src R :exports code :results output
+  lDdwf200g <- filter(lDdw,dnorm(-100:100,0,100/3))
+  lDdwf100g <- filter(lDdw,dnorm(-50:50,0,50/3))
+  lDdwf50g <- filter(lDdw,dnorm(-25:25,0,25/3))
+#+end_src
+
+#+results:
+
+We can plot the "original" data from the thirs recording site together with the different filtered versions:
+#+header :width 5000 :height 5000
+#+begin_src R :file lDd-and-Gaussian-filtered-versions.png :results graphics
+  plot(window(lDdw[,3],6.55,6.6),ylab="",xlab="Time (s)",
+       main="",col="grey70")
+  lines(window(lDdwf200g[,3],6.55,6.6),col=1,lwd=2,lty=3)
+  lines(window(lDdwf100g[,3],6.55,6.6),col=4,lwd=2,lty=2)
+  lines(window(lDdwf50g[,3],6.55,6.6),col=2,lwd=2,lty=1)
+#+end_src
+
+#+CAPTION: 50 ms of the derivative data on site 3 (grey) together with box filtered versions of it obtained with a Gaussian filter with an SD of 100/60 ms (dotted black), 50/60 ms (dashed blue) and 25/60 ms (red). 
+#+LABEL: fig:lDd-and-Gaussian-filtered-versions
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lDd-and-Gaussian-filtered-versions.png]]
+
+
+*** Conclusion
+Based on these figuree we could decide to filter the (derivative) data with a Gaussian filter of =SD= 25/60 ms before subtracting this filtered trace from the (derivative) data:
+#+begin_src R :exports code :results output
+  lDdF <- filter(lDd, dnorm(-25:25,0,25/3))
+  lDdF[is.na(lDdF)] <- 0
+  lDdB <- lDd - lDdF
+#+end_src 
+
+#+results:
+
+Exploring the transformed data with:
+#+begin_src R :exports code  :results output :eval never
+explore(lDdB)
+#+end_src
+shows that's their still some weird stuff around 16, 28.5, 31.5, 44, 57 s but it looks much better than it did initially. Essentially the data are well behaved except during short periods around the indicated times as illustrated in the next figure:
+#+header :width 5000 :height 5000
+#+begin_src R :file lDdB-last-nasty-period.png :results graphics
+  plot(window(lDdB,57.25,57.35),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: The last weird period of the first minute. A box filtered version (with a 2.5 ms box length) has been subtracted from the data. 
+#+LABEL: fig:lDdB-last-nasty-period
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lDdB-last-nasty-period.png]]
+
+** A comparison with more traditional filtering approaches
+
+Instead of using the derivative and then subtracting a sliding average of the data we could use something more traditional like what is done by [[http://jn.physiology.org/content/84/1/401.long][Henze et al, 2000]]: "~The continuously recorded wideband signals were digitally high-pass filtered (Hamming window-based finite impulse response filter, cutoff 800 Hz, filter order 50).~" To do that we start by loading the package in our =work space=:
+#+begin_src R :exports code :results silent
+library(signal)
+#+end_src
+
+#+results:
+
+We then make a high-pass Hamming window-based FIR filter with a cutoff at 800 Hz and an order of 50 with:
+#+begin_src R :exports code
+  FIRhw <- fir1(50,0.8/10,"high")
+#+end_src 
+
+#+results:
+
+We prepare a filtered version of our /raw/ data:
+#+begin_src R :exports code :results output
+  lDfir <- ts(apply(lD,2,function(x) stats::filter(x,FIRhw)),start=0,freq=2e4)
+  lDfir[is.na(lDfir)] <- 0
+#+end_src
+
+#+results:
+
+It then very easy to compare the different versions on a given site with =explore=:
+#+begin_src R :exports code :eval never
+explore(cbind(lDd[,1],lDdB[,1],lDfir[,1]))
+#+end_src
+
+We will do with a comparison of a zoom of the last figure on the first recording site:
+#+header :width 5000 :height 5000
+#+begin_src R :file filter-comparison-on-last-nasty-period.png :results graphics
+  plot(window(cbind(deriv=lDd[,1],
+                    derivB=lDdB[,1],
+                    FIRhw=lDfir[,1]
+                    ),57.26,57.32
+              ),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: The last weird period of the first minute on the first recording site. Top trace: the derivative of the raw data; second trace: A Gaussian-filtered version (with a 25/60 ms =SD=) has been subtracted from the derivative; third trace: the raw data have been high-pass filtered with a Hamming window-based FIR filter with a cutoff at 800 Hz and an order of 50. #+LABEL: fig:filter-comparison-on-last-nasty-period
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:filter-comparison-on-last-nasty-period.png]]
+
+The last two traces exhibit similar features as far as spikes are concerned. The middle trace as more high-frequency noise.
+This comparison suggest that our initial approach: subtract Gaussian-filtered version from the derivative trace works similarly to the more traditional one. Before proceeding further, we detach the =signal= package:
+#+begin_src R :exports code :results silent
+detach(package:signal)
+#+end_src
+
+** A note on the "LFPs"
+The "LFPs" isolated by Gaussian-filtering the derivative trace are essantially identical on the four recording sites as shown on the next figure:
+#+header :width 5000 :height 5000
+#+begin_src R :file LFP-comparison-on-last-nasty-period.png :results graphics
+  plot(window(lDdF,57.25,57.35),,"single",
+       col=c("black","grey80","orange","blue"),
+       lty=c(2,2,1,1),lwd=c(2,2,1,1),ylab="")
+#+end_src
+
+#+CAPTION: Comparison of the "LFPs" on the last weird period of the first minute on the first recording site. The "LFPs" obtained by Gaussian-filtering (=SD= : 25/60 ms) the derivative traces are shown: thick dashed black, site 1; thick dashed grey, site 2; thin orange, site 3; thin blue, site 4.
+#+LABEL: fig:LFP-comparison-on-last-nasty-period
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:LFP-comparison-on-last-nasty-period.png]]
+We see 5 oscillations in 40 ms or 125 Hz corresponding to ripples.
+
+Since the four time series are so close it is more informative to plot each one minus the mean of the other three:
+#+header :width 5000 :height 5000
+#+begin_src R :file LFP-comparison2-on-last-nasty-period.png :results graphics
+  lDdFw <- window(lDdF,57.25,57.35)
+  lDdFwM <- ts(apply(lDdFw,1,mean),start=start(lDdFw),freq=frequency(lDdFw))
+  lDdFwR <- (lDdFw-lDdFwM)*4/3
+  colnames(lDdFwR) <- paste("Site",1:4,"resid.")
+  plot(lDdFwR,main="")
+#+end_src
+
+#+CAPTION: Comparison of the "LFPs" on the last weird period of the first minute on the first recording site. The "Residual LFPs" obtained by Gaussian-filtering (=SD= : 25/60 ms) the derivative traces before substrating from each LFP the mean value of the three others are shown.
+#+LABEL: fig:LFP-comparison2-on-last-nasty-period
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:LFP-comparison2-on-last-nasty-period.png]]
+
+** Overall view of the LFP
+The LFPs on the four recording sites are so similar that is makes sense to average them:
+#+begin_src R :exports code :results output
+  lDdFm <- apply(lDdF,1,sum)/4
+  lDdFm <- ts(lDdFm,start=0,freq=2e4)
+#+end_src
+Since after Gaussian-filtering we essentially get a low-passed version of the data, we can sub-sample them by a factor of 10 before displaying the whole LPF:
+
+#+header :width 5000 :height 5000
+#+begin_src R :file mean-sub-sampled-LFP.png :results graphics
+  lDdFms <- lDdFm[seq(1,length(lDdFm),10)]
+  lDdFms <- ts(lDdFms,start=0,freq=2e3)
+  plot(lDdFms,xlab="Time (s)",ylab="")
+#+end_src
+
+#+CAPTION: Mean LFP time course. Our previously mentioned "nasty" periods (which are in fact ripples) can be clearly seen.
+#+LABEL: fig:mean-sub-sampled-LFP
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:mean-sub-sampled-LFP.png]]
+
+Here plotting the auto-correlation function computed globally confirms our frequency estimation:
+#+header :width 5000 :height 5000
+#+begin_src R :file acf-sub-sampled-LFP.png :results graphics
+  acf(lDdFms,lag.max=2e2)
+#+end_src 
+
+#+CAPTION: Auto-correlation of the mean LFP. We see clearly 5 periods in 40 ms.
+#+LABEL: fig:acf-sub-sampled-LFP
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:acf-sub-sampled-LFP.png]]
+
+** Detecting ripples
+Since our ripples seem to be roughly 5 periods long with a period duration of 8 ms, we can filter the mean LFP trace with few (3) periods of a cosine function of period 8 ms, take the square and filter the whole thing with a Gaussian filter with an =SD= of 8 ms:
+#+begin_src R :exports code :results output
+  lDdFmsF <- filter(lDdFms,cos((-48:48)/16*2*pi))
+  lDdFmsF[is.na(lDdFmsF)] <- 0
+  lDdFmsFF <- filter(lDdFmsF^2,dnorm(-48:48,0,16))
+  lDdFmsFF[is.na(lDdFmsFF)] <- 0
+#+end_src
+
+#+results:
+
+The whole filtered trace now looks like:
+#+header :width 5000 :height 5000
+#+begin_src R :file LFP-filtered-for-ripples.png :results graphics
+  plot(lDdFmsFF,xlab="Time (s)",ylab="")
+#+end_src
+
+#+CAPTION: Mean LFP time course filtered with 3, 8 ms long periods of a cosine function, squared and filtered with a Gaussian filter of 8 ms =SD=. The ripples pop out very clearly.
+#+LABEL: fig:LFP-filtered-for-ripples
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:LFP-filtered-for-ripples.png]]
+
+Ripples can now be detected as points exceeding a properly set threshold on the above trace. After few attempts based on generation of plots with:
+#+begin_src R :exports code :eval never
+  plot(lDdFmsFF,ylim=c(0,2e5))
+#+end_src
+We decided to set the threshold at =1e5=:
+#+begin_src R :exports code :results output
+  inRipple <- lDdFmsFF > 1e5
+#+end_src
+
+#+results:
+
+We have to be careful here since we have obtained this =inRipple= logical vector from a sub-sampled version of the trace. But we are going to use this information later on the "original" data so we have to get the ripple periods right. To this end we will get the real time of the beginning and of the end of the ripples:
+#+begin_src R :exports code :results output
+  ii <- seq(along=inRipple)
+  start.ripple <- ii[c(diff(inRipple),0)==1]
+  end.ripple <- ii[c(diff(inRipple),0)==-1]
+  if (min(end.ripple) < min(start.ripple)) start.ripple <- c(1,start.ripple)
+  if (max(start.ripple) > max(end.ripple)) end.ripple <- c(end.ripple,length(inRipple))
+  ripple.bounds <- rbind(start.ripple,end.ripple)/frequency(lDdFmsFF)
+#+end_src
+
+#+results:
+
+This gives us a fraction of src_R{round(sum(apply(ripple.bounds,2,diff))/end(lDdFmsFF)[1]*100,digits=1)} =1.5= % of sample points within a ripple.
+
+** COMMENT Doing the last two sub-sections the "classical way"
+We are going to use again the =signal= library:
+#+begin_src R :exports code :results silent
+  library(signal)
+#+end_src
+We then /low-pass/ the /first derivative/ of the data using a FIR with a cutoff frequency set at 300 Hz and an order of 100:
+#+begin_src R :exports code :results output
+  FIRlw <- fir1(100,0.3/10,"low")
+  lDfiR <- ts(apply(lDd,2,function(x) stats::filter(x,FIRlw)),start=0,freq=2e4)
+  lDfiR[is.na(lDfiR)] <- 0
+#+end_src
+
+#+results:
+
+We then take the mean value accross channels:
+#+begin_src R :exports code :results output
+  lDfiRm <- ts(apply(lDfiR,1,sum)/4,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We filter the square of this trace like we did before (adjusting the =SD= of the Gaussian filter since the trace was not sub-sampled here:
+#+begin_src R :exports code :results output
+  lDfiRR <- stats::filter(lDfiRm^2,dnorm(-480:480,0,160))
+  lDfiRR[is.na(lDfiRR)] <- 0
+  lDfiRR <- ts(lDfiRR,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We can now detach the =signal= library:
+#+begin_src R :exports code :results silent
+  detach(package:signal)
+#+end_src
+
+** COMMENT Using second derivative ?
+An alternative to the previous "first derivative - low-passed filtered first derivative" approach is to work with the second derivative of the signal. In general, assuming that a signal $s(t)$ is four times differentiable we have:
+\[
+s(t+\Delta) = s(t) + \Delta \, s'(t) + \frac{\Delta^2}{2} \, s''(t) + \frac{\Delta^3}{6} \, s'''(t) + o(\Delta^4)
+\]
+and
+\[
+s(t-\Delta) = s(t) - \Delta \, s'(t) + \frac{\Delta^2}{2} \, s''(t) - \frac{\Delta^3}{6} \, s'''(t) + o(\Delta^4) \; .
+\]
+Therefore
+\[
+s(t+\Delta) - 2 \, s(t) + s(t-\Delta) = \Delta^2 \, s''(t) + o(\Delta^4)
+\]
+and
+\[
+\frac{s(t+\Delta) - 2 \, s(t) + s(t-\Delta)}{\Delta^2} = s''(t) + o(\Delta^2) \; .
+\]
+We therefore get an estimate of the second derivative of our data with :
+#+begin_src R :exports code :results output
+  lDdd <- apply(lD,2,
+                function(x) {
+                  n <- length(x)
+                  c(0,x[3:n]-2*x[2:(n-1)]+x[1:(n-2)],0)
+                }
+                )
+  lDdd <- ts(lDdd,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We get the summary of this second derivative version:
+#+begin_src R :exports both :results value :colnames yes
+summary(lDdd)
+#+end_src
+
+#+results:
+| Series 1          | Series 2           | Series 3          | Series 4           |
+|-------------------+--------------------+-------------------+--------------------|
+| Min.   :-4.62e+02 | Min.   :-4.790e+02 | Min.   :-5.55e+02 | Min.   :-4.730e+02 |
+| 1st Qu.:-3.30e+01 | 1st Qu.:-3.700e+01 | 1st Qu.:-3.50e+01 | 1st Qu.:-3.400e+01 |
+| Median : 0.00e+00 | Median : 0.000e+00 | Median : 0.00e+00 | Median : 0.000e+00 |
+| Mean   :-2.50e-06 | Mean   :-1.833e-05 | Mean   : 3.75e-05 | Mean   :-2.583e-05 |
+| 3rd Qu.: 3.30e+01 | 3rd Qu.: 3.700e+01 | 3rd Qu.: 3.50e+01 | 3rd Qu.: 3.400e+01 |
+| Max.   : 5.66e+02 | Max.   : 5.460e+02 | Max.   : 4.72e+02 | Max.   : 5.640e+02 |
+
+A plot of the first 10 seconds gives:
+#+header :width 5000 :height 5000
+#+begin_src R :file ten-sec-lDdd.png :results graphics
+plot(window(lDdd,0,10),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: First 10 sec of the second derivative of recording of channels 1 to 4 (the tetrode channels) of  data set =d11221.002=.
+#+LABEL: fig:ten-sec-lDdd
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:ten-sec-lDdd.png]]
+
+A plot of the last "weird" period of the first minute looks now like:
+#+header :width 5000 :height 5000
+#+begin_src R :file lDdd-last-nasty-period.png :results graphics
+  plot(window(lDdd,57.26,57.32),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: The last weird period of the first minute on the second derivative. 
+#+LABEL: fig:lDdd-last-nasty-period
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:lDdd-last-nasty-period.png]]
+
+In the sequel we are going to use both versions: =lDdB= and =lDdd= to see which one "works best".
+
+* Data renormalization and spike detection
+
+** Using the low-pass subtracted first derivative =lDdB=
+We proceed almost as usual and set the /median absolute deviation/ of each recording site to one but we are going to start by computing the within ripples and out of ripples =MAD=:
+#+begin_src R :exports both :results output
+  idxRipple <- unlist(lapply(1:dim(ripple.bounds)[2],
+                             function(i) (ripple.bounds[1,i]*2e4):(ripple.bounds[2,i]*2e4)
+                             )
+                      )
+  lDdB.mad <- apply(lDdB,2,mad)
+  lDdB.mad.in <- apply(lDdB[idxRipple,],2,mad)
+  lDdB.mad.out <- apply(lDdB[-idxRipple,],2,mad)
+  all.mad <- rbind(lDdB.mad,lDdB.mad.in,lDdB.mad.out)
+  colnames(all.mad) <- paste("site", 1:4)
+  rownames(all.mad) <- c("global","within ripples","out of ripples")
+  round(all.mad)
+#+end_src
+
+#+results:
+:                site 1 site 2 site 3 site 4
+: global             28     33     30     28
+: within ripples     39     43     41     40
+: out of ripples     28     33     30     28
+
+We now normalize the whole trace using the global =MAD= which essentially the /out of ripples/ =MAD=, but we keep in mind that the noise level is /much/ larger during ripples:
+#+begin_src R :exports code :results output
+  lDdB <- t(t(lDdB)/lDdB.mad)
+  lDdB <- ts(lDdB,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We are going to detect valleys (as opposed to peaks) on a box-filtered version of the data:
+#+begin_src R :exports both :results output
+  lDdBf <- filter(lDdB,rep(1,3)/3)
+  lDdBf.mad <- apply(lDdBf,2,mad,na.rm=TRUE)
+  lDdBf <- t(t(lDdBf)/lDdBf.mad)
+  thrs <- rep(-5,4)
+  above.thrs <- t(t(lDdBf) > thrs)
+  lDdBfr <- lDdBf
+  lDdBfr[above.thrs] <- 0
+  remove(lDdBf)
+  (sp.dB <- peaks(apply(-lDdBfr,1,sum),15))
+#+end_src
+
+#+results:
+:  
+: eventsPos object with indexes of 1162 events. 
+:   Mean inter event interval: 1032.54 sampling points, corresponding SD: 1556.81 sampling points 
+:   Smallest and largest inter event intervals: 9 and 13946 sampling points.
+
+Among the src_R{length(sp.dB)} =1162= detected spikes, src_R{length(sp.dB[sp.dB %in% idxRipple])} =204= are within the ripples.
+
+Here an interactive exploration of the detection:
+#+begin_src R :exports code :eval never
+explore(sp.dB,lDdB,col=c("black","grey50"))
+#+end_src 
+shows that the detection is quite good; but there is clearly an extra bunch of events showing up during the bursty periods.
+
+
+** Using the high-passed version =lDfir=
+We proceed like in the previous section and set the /median absolute deviation/ of each recording site to one but we are going to start by computing the within ripples and out of ripples =MAD=:
+#+begin_src R :exports both :results output
+  lDfir.mad <- apply(lDfir,2,mad)
+  lDfir.mad.in <- apply(lDfir[idxRipple,],2,mad)
+  lDfir.mad.out <- apply(lDfir[-idxRipple,],2,mad)
+  all.fir.mad <- rbind(lDfir.mad,lDfir.mad.in,lDfir.mad.out)
+  colnames(all.fir.mad) <- paste("site", 1:4)
+  rownames(all.fir.mad) <- c("global","within ripples","out of ripples")
+  round(all.fir.mad)
+#+end_src
+
+#+results:
+:                site 1 site 2 site 3 site 4
+: global             42     51     46     43
+: within ripples     66     72     70     66
+: out of ripples     42     51     46     43
+
+We now normalize the whole trace using the global =MAD= which essentially the /out of ripples/ =MAD=, but we keep in mind that the noise level is /much/ larger during ripples:
+#+begin_src R :exports code :results output
+  lDfir <- t(t(lDfir)/lDfir.mad)
+  lDfir <- ts(lDfir,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We are going to detect valleys (as opposed to peaks). We do not use a box filter here, unlike the previous section, since the data have already been high passed at 800 Hz:
+#+begin_src R :exports both :results output
+  thrs <- rep(-5,4)
+  above.thrs <- t(t(lDfir) > thrs)
+  lDfirr <- lDfir
+  lDfirr[above.thrs] <- 0
+  (sp.fir <- peaks(apply(-lDfirr,1,sum),15))
+#+end_src
+
+#+results:
+:  
+: eventsPos object with indexes of 1141 events. 
+:   Mean inter event interval: 1051.75 sampling points, corresponding SD: 1579.84 sampling points 
+:   Smallest and largest inter event intervals: 8 and 12281 sampling points.
+
+These global features re very similar to the ones obtained in the previous section.
+Among the src_R{length(sp.fir)} =1141=  detected spikes, src_R{length(sp.fir[sp.fir %in% idxRipple])} =196= are within the ripples.
+
+** COMMENT Using the second derivative =lDdd=
+
+We proceed as usual and set the /median absolute deviation/ of each recording site to one:
+#+begin_src R :exports code :results output
+  lDdd.mad <- apply(lDdd,2,mad)
+  lDdd <- t(t(lDdd)/lDdd.mad)
+  lDdd <- ts(lDdd,start=0,freq=2e4)
+#+end_src
+
+#+results:
+
+We are going to detect peaks (as opposed to valleys) on a box-filtered version of the data:
+#+begin_src R :exports both :results output
+  lDddf <- filter(lDdd,rep(1,3)/3)
+  lDddf.mad <- apply(lDddf,2,mad,na.rm=TRUE)
+  lDddf <- t(t(lDddf)/lDddf.mad)
+  thrs <- rep(5,4)
+  bellow.thrs <- t(t(lDddf) < thrs)
+  lDddfr <- lDddf
+  lDddfr[bellow.thrs] <- 0
+  remove(lDddf)
+  (sp.dd <- peaks(apply(lDddfr,1,sum),15))
+#+end_src
+
+#+results:
+:  
+: eventsPos object with indexes of 852 events. 
+:   Mean inter event interval: 1408.67 sampling points, corresponding SD: 2091.19 sampling points 
+:   Smallest and largest inter event intervals: 8 and 14528 sampling points.
+
+We see that the =SD= is very different from the mean inter event interval. This suggests that with our settings /few/ neurons were detected.
+
+* Cuts
+  
+** Using the low-pass subtracted first derivative =lDdB=
+
+*** Events
+
+In order to get the cut length "right" we start with long cuts and check how long it takes for the =MAD= to get back to noise level:
+
+#+begin_src R :exports code :results output
+  evts.dB <- mkEvents(sp.dB,lDdB,49,50)
+  evts.dB.med <- median(evts.dB)
+  evts.dB.mad <- apply(evts.dB,1,mad)
+#+end_src
+
+#+results:
+
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dB-med-and-mad.png :results graphics 
+  plot(evts.dB.med,type="n",ylab="Amplitude")
+  abline(v=seq(0,400,10),col="grey")
+  abline(h=c(0,1),col="grey")
+  lines(evts.dB.med,lwd=2)
+  lines(evts.dB.mad,col=2,lwd=2)
+#+end_src
+
+#+caption: Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (100 sampling points) cuts. We see clearly that the dispersion is almost at noise level 20 points before the peak and 30 points after the peak (on site 1).
+#+LABEL: fig:evts-dB-med-and-mad
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dB-med-and-mad.png]]
+
+So we decide to make our cuts with 19 points before and 30 points after our reference times (the valleys):
+#+begin_src R :exports code :results output
+  evts.dB <- mkEvents(sp.dB,lDdB,19,30)
+#+end_src
+
+#+results:
+
+It also interesting to compare within ripples with out of ripples events:
+#+begin_src R :exports code :results output
+  evts.dB.in <- mkEvents(sp.dB[sp.dB %in% idxRipple],lDdB,19,30)
+  evts.dB.in.med <- median(evts.dB.in)
+  evts.dB.in.mad <- apply(evts.dB.in,1,mad)
+  evts.dB.out <- mkEvents(sp.dB[!sp.dB %in% idxRipple],lDdB,19,30)
+  evts.dB.out.med <- median(evts.dB.out)
+  evts.dB.out.mad <- apply(evts.dB.out,1,mad)
+#+end_src
+
+#+results:
+
+A comparison of the central / median event is instructive here:
+#+header :width 5000 :height 5000
+#+begin_src R :file within-out-of-ripples-events.png :results graphics
+  out.upr <- evts.dB.out.med+2*evts.dB.out.mad/sqrt(dim(evts.dB.out)[2])
+  out.lwr <- evts.dB.out.med-2*evts.dB.out.mad/sqrt(dim(evts.dB.out)[2])
+  ylim <- range(c(out.upr,out.lwr,evts.dB.in.med))
+  plot(evts.dB.in.med,type="l",col=1,lwd=2,ylim=ylim)
+  lines(out.upr,
+        col=2,lwd=1)
+  lines(out.lwr,
+        col=2,lwd=1)
+#+end_src
+
+#+caption: Robust estimates of the central event /within ripples/ (black) and pointwise 95% confidence interval for the robust estimate of the central event /out of ripples/ (red).
+#+LABEL: fig:within-out-of-ripples-events
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:within-out-of-ripples-events.png]]
+
+*** First jitter cancellation
+We realign each event on the overall central (median) event:
+#+begin_src R :exports code :results output
+evts.dBo2 <- alignWithProcrustes(sp.dB,lDdB,19,30,maxIt=5,plot=TRUE)
+#+end_src
+
+#+results:
+: Template difference: 1.696, tolerance: 1
+: _______________________
+: Template difference: 0.752, tolerance: 1
+: _______________________
+
+A plot of the first 500 aligned events is obtained with:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts.dBo2.png :results graphics
+evts.dBo2[,1:500]
+#+end_src
+
+#+CAPTION: The overall median aligned events' sample (first 500 events) obtained from the low-pass subtracted first derivative. 
+#+LABEL: fig:evts-dBo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts.dBo2.png]]
+
+*** Noise
+We cut noise "events" in between "proper events":
+#+begin_src R :exports code :results output
+  noise.dB <- mkNoise(sp.dB,lDdB,19,30,safetyFactor=3,2000)
+#+end_src
+
+#+results:
+
+*** Clean events
+Since we have few superpositions apparent on our events' plot, we are going to get ride of the most obvious ones:
+#+begin_src R :exports code :results output
+  goodEvtsFct <- function(samp,thr=4,deriv.thr=0.1) {
+    nbS <- attr(samp,"numberOfSites")
+    cl <- dim(samp)[1]/nbS
+    samp <- unclass(samp)
+    samp.med <- apply(samp,1,median)
+    samp.med.mat <- matrix(samp.med,nc=nbS)
+    samp.med.D.mat <- apply(samp.med.mat,
+                            2,
+                            function(x) c(0,diff(x,2)/2,0)
+                            )
+    samp.med.D.mat <- apply(samp.med.D.mat,
+                            2,
+                            function(x) abs(x)/max(abs(x))
+                            )
+    firstAbove <- apply(samp.med.D.mat,
+                        2,
+                        function(x) min((1:cl)[x >= deriv.thr])
+                        )
+    lastBellow <- apply(samp.med.D.mat,
+                        2,
+                        function(x) max((1:cl)[x >= deriv.thr])
+                        )
+    firstAbove <- min(firstAbove)
+    lastBellow <- max(lastBellow)
+    lookAt <- rep(TRUE,cl)
+    lookAt[firstAbove:lastBellow] <- FALSE
+    lookAt <- rep(lookAt,nbS)
+    samp <- samp-samp.med
+    samp.r <- apply(samp,2,
+                    function(x) {
+                      x[!lookAt] <- 0
+                      x
+                    }
+                    )
+    apply(samp.r,2,function(x) all(abs(x)<thr))
+  }
+  
+#+end_src
+
+#+results:
+
+We can check how the number of "good" (/i.e./, classified as not superposed) events changes with the threshold:
+#+begin_src R :exports both :results output
+sapply(3:10,function(i) sum(goodEvtsFct(evts.dBo2,i)))
+#+end_src
+
+#+results:
+: [1]  383  804  941  989 1018 1030 1050 1063
+
+We start with a threshold of 6:
+#+begin_src R :exports code :results output
+  good.dB <- goodEvtsFct(evts.dBo2,6)
+#+end_src
+
+#+results:
+
+We can look at the good events:
+#+header :width 5000 :height 5000
+#+begin_src R :file good-evts-dBo2.png :results graphics
+  evts.dBo2[,good.dB]
+#+end_src
+
+#+caption: The src_R{sum(good.dB)} =989= good events.
+#+LABEL: fig:good-evts-dBo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:good-evts-dBo2.png]]
+
+Now the not so good events:
+#+header :width 5000 :height 5000
+#+begin_src R :file not-good-evts-dBo2.png :results graphics
+  evts.dBo2[,!good.dB]
+#+end_src
+
+#+caption: The src_R{sum(!good.dB)} =173= not good events.
+#+LABEL: fig:not-good-evts-dBo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:not-good-evts-dBo2.png]]
+
+** Using the high-passed version =lDfir=
+*** Events
+In order to get the cut length "right" we start with long cuts and check how long it takes for the =MAD= to get back to noise level:
+#+begin_src R :exports code :results output
+  evts.fir <- mkEvents(sp.fir,lDfir,49,50)
+  evts.fir.med <- median(evts.fir)
+  evts.fir.mad <- apply(evts.fir,1,mad)
+#+end_src
+
+#+results:
+
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-fir-med-and-mad.png :results graphics 
+  plot(evts.fir.med,type="n",ylab="Amplitude")
+  abline(v=seq(0,400,10),col="grey")
+  abline(h=c(0,1),col="grey")
+  lines(evts.fir.med,lwd=2)
+  lines(evts.fir.mad,col=2,lwd=2)
+#+end_src
+
+#+caption: Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (100 sampling points) cuts. We see clearly that the dispersion is almost at noise level 30 points before the peak and 40 points after the peak (on site 1).
+#+LABEL: fig:evts-fir-med-and-mad
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-fir-med-and-mad.png]]
+
+So we decide to make our cuts with 29 points before and 40 points after our reference times (the valleys):
+#+begin_src R :exports code :results output
+  evts.fir <- mkEvents(sp.fir,lDfir,29,40)
+#+end_src
+
+#+results:
+
+*** First jitter cancellation
+We realign each event on the overall central (median) event:
+#+begin_src R :exports code :results output
+evts.firo2 <- alignWithProcrustes(sp.fir,lDfir,29,40,maxIt=5,plot=TRUE)
+#+end_src
+
+#+results:
+: Template difference: 1.87, tolerance: 1
+: _______________________
+: Template difference: 2.188, tolerance: 1
+: _______________________
+: Template difference: 3.242, tolerance: 1
+: _______________________
+: Template difference: 2.933, tolerance: 1
+: _______________________
+
+A plot of the first 500 aligned events is obtained with:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts.firo2.png :results graphics
+evts.firo2[,1:500]
+#+end_src
+
+#+CAPTION: The overall median aligned events' sample (first 500 events) obtained from the high-passed data. 
+#+LABEL: fig:evts-firo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts.firo2.png]]
+
+*** Noise
+We cut noise "events" in between "proper events":
+#+begin_src R :exports code :results output
+  noise.fir <- mkNoise(sp.fir,lDfir,29,40,safetyFactor=3,2000)
+#+end_src
+
+#+results:
+
+*** Clean events
+Since we have few superpositions apparent on our events' plot, we are going to get ride of the most obvious ones.
+We can check how the number of "good" (/i.e./, classified as not superposed) events changes with the threshold:
+#+begin_src R :exports both :results output
+sapply(3:10,function(i) sum(goodEvtsFct(evts.firo2,i)))
+#+end_src
+
+#+results:
+: [1]  355  722  873  926  967  994 1011 1030
+
+We start with a threshold of 7 giving roughly the same number of good events as the threshold of 6 in the previous section:
+#+begin_src R :exports code :results output
+  good.fir <- goodEvtsFct(evts.firo2,7)
+#+end_src
+
+#+results:
+
+We can look at the good events:
+#+header :width 5000 :height 5000
+#+begin_src R :file good-evts-firo2.png :results graphics
+  evts.firo2[,good.fir]
+#+end_src
+
+#+caption: The src_R{sum(good.fir)} =967= good events.
+#+LABEL: fig:good-evts-firo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:good-evts-firo2.png]]
+
+Now the not so good events:
+#+header :width 5000 :height 5000
+#+begin_src R :file not-good-evts-firo2.png :results graphics
+  evts.firo2[,!good.fir]
+#+end_src
+
+#+caption: The src_R{sum(!good.fir)} =174= not good events.
+#+LABEL: fig:not-good-evts-firo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:not-good-evts-firo2.png]]
+
+** COMMENT Using the second derivative =lDdd=
+
+*** Events
+After a try with 20 sampling points long cuts, we decided to reduce that a bit to 12 points:
+#+begin_src R :exports code :results output
+evts.dd <- mkEvents(sp.dd,lDdd,5,6)
+#+end_src
+
+#+results:
+A plot (not shown) of the whole sample is quickly obtained with:
+#+begin_src R :exports code :eval never
+evts.dd
+#+end_src
+The plot shows very little (if any) superpositions.
+
+*** First jitter cancellation
+We realign each event on the overall central (median) event:
+#+begin_src R :exports code :results output
+evts.ddo2 <- alignWithProcrustes(sp.dd,lDdd,5,6,maxIt=5,plot=TRUE)
+#+end_src
+
+#+results:
+: Template difference: 4.002, tolerance: 1
+: _______________________
+: Template difference: 2.254, tolerance: 1
+: _______________________
+: Template difference: 2.395, tolerance: 1
+: _______________________
+: Template difference: 2.129, tolerance: 1
+: _______________________
+
+A plot of the aligned sample is obtained with:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts.ddo2.png :results graphics
+evts.ddo2
+#+end_src
+
+#+CAPTION: The overall median aligned events' sample obtained from the second derivative. 
+#+LABEL: fig:evts-ddo2
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts.ddo2.png]]
+
+We see clearly at least two units on the first and fourth recording sites.
+
+*** Noise
+We cut noise "events" in between "proper events":
+#+begin_src R :exports code :results output
+  noise.dd <- mkNoise(sp.dd,lDdd,5,6,safetyFactor=3,2000)
+#+end_src
+
+#+results:
+
+* Dimension reduction
+** Using the low-pass subtracted first derivative =lDdB=
+*** Principal component analysis
+We compute the =PCA= decomposition using the clean guys in =evts.dBo2=:
+#+begin_src R :exports code :results hide
+  evts.dB.pc <- prcomp(t(evts.dBo2[,good.dB]))
+#+end_src
+
+#+results:
+
+We then explore the results with function / method =explore=: 
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dBo2-pc.png :results graphics
+  layout(matrix(1:4,nr=2))
+  explore(evts.dB.pc,1,3)
+  explore(evts.dB.pc,2,3)
+  explore(evts.dB.pc,3,3)
+  explore(evts.dB.pc,4,3)
+#+end_src
+
+#+CAPTION: PCA of =evts.dBo2= exploration (PC 1 to 4). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 3 x PC (red), the mean - 3 x PC (blue) for each of the first 4 PCs. The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.
+#+LABEL: fig:evts-dBo2-pc
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dBo2-pc.png]]
+
+The plot suggest that the first 3 to 4 PCs should be enough since the fourth looks "wiggly" as if it were mainly noise.
+
+Another way to get an upper bound on the number of PCs to keep is to compare the sample variance to the one of the noise plus a few of the first PCs (keeping in mind here that the noise is /not homogeneous/ due to the ripples):
+#+begin_src R :exports both :results output
+  round(sapply(1:10, function(i) sum(diag(cov(t(noise.dB))))+sum(evts.dB.pc$sdev[1:i]^2))-sum(evts.dB.pc$sdev^2))
+#+end_src
+
+#+results:
+:  [1] -103  -74  -60  -48  -37  -27  -18   -9    0    8
+
+This suggest 9 PCs /as an upper bound/ of the number of relevant PCs. We look next at static projections:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dBo2-pc-scatter-plot.png :results graphics
+  panel.dens <- function(x,...) {
+    usr <- par("usr")
+    on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    d <- density(x, adjust=0.5)
+    x <- d$x
+    y <- d$y
+    y <- y/max(y)
+    lines(x, y, col="grey50", ...)
+  }
+  pairs(evts.dB.pc$x[,1:6],pch=".",gap=0,diag.panel=panel.dens)
+#+end_src
+
+#+CAPTION: Scatter plot matrix of the projections of the "good" elements of =evts.dBo2= onto the planes defined by the first 6 PCs. The diagonal shows a smooth (Gaussian kernel based) density estimate of the projection of the sample on the corresponding PC.
+#+LABEL: fig:evts-dBo2-pc-scatter-plot
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dBo2-pc-scatter-plot.png]]
+
+This plot suggest that the first 3 PCs should be enough and that 4 or perhaps 5 clusters are required (with 2 large ones). To confirm this analysis we export the data (first 6 PCs) in =csv= format and visualize them with =GGobi=:
+#+begin_src R :exports code :eval never
+write.csv(evts.dB.pc$x[,1:6],file="evts-dB.csv")
+#+end_src
+
+The dynamical confirms the previous diagnostic 3 PCs should be enough and 4 to 5 units should be considered.
+ 
+** Using the high-passed version =lDfir=
+We compute the =PCA= decomposition using the clean guys in =evts.firo2=:
+#+begin_src R :exports code :results hide
+  evts.fir.pc <- prcomp(t(evts.firo2[,good.fir]))
+#+end_src
+
+#+results:
+
+We then explore the results with function / method =explore=: 
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-firo2-pc.png :results graphics
+  layout(matrix(1:4,nr=2))
+  explore(evts.fir.pc,1,3)
+  explore(evts.fir.pc,2,3)
+  explore(evts.fir.pc,3,3)
+  explore(evts.fir.pc,4,3)
+#+end_src
+
+#+CAPTION: PCA of =evts.firo2= exploration (PC 1 to 4). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 3 x PC (red), the mean - 3 x PC (blue) for each of the first 4 PCs. The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.
+#+LABEL: fig:evts-firo2-pc
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-firo2-pc.png]]
+
+The plot suggest that the first 3 to 4 PCs should be enough since the fourth looks "wiggly" as if it were mainly noise.
+Another way to get an upper bound on the number of PCs to keep is to compare the sample variance to the one of the noise plus a few of the first PCs (keeping in mind here that the noise is /not homogeneous/ due to the ripples):
+#+begin_src R :exports both :results output
+  round(sapply(1:10, function(i) sum(diag(cov(t(noise.fir))))+sum(evts.fir.pc$sdev[1:i]^2))-sum(evts.fir.pc$sdev^2))
+#+end_src
+
+#+results:
+:  [1] -180 -125 -101  -78  -57  -38  -20   -5    8   22
+
+This suggest 9 PCs /as an upper bound/ of the number of relevant PCs. We look next at static projections:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-firo2-pc-scatter-plot.png :results graphics
+  pairs(evts.fir.pc$x[,1:6],pch=".",gap=0,diag.panel=panel.dens)
+#+end_src
+
+#+CAPTION: Scatter plot matrix of the projections of the "good" elements of =evts.firo2= onto the planes defined by the first 6 PCs. The diagonal shows a smooth (Gaussian kernel based) density estimate of the projection of the sample on the corresponding PC.
+#+LABEL: fig:evts-firo2-pc-scatter-plot
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-firo2-pc-scatter-plot.png]]
+
+This plot suggest that the first 3 PCs should be enough and that 4 or perhaps 5 clusters are required (with 2 large ones). To confirm this analysis we export the data (first 6 PCs) in =csv= format and visualize them with =GGobi=:
+#+begin_src R :exports code :eval never
+write.csv(evts.fir.pc$x[,1:6],file="evts-fir.csv")
+#+end_src
+
+The dynamical confirms the previous diagnostic 3 PCs should be enough and 4 to 5 units should be considered.
+
+** COMMENT Using the second derivative =evts.dd=
+
+*** Principal component analysis
+Since we do not seem to have too many superpositions in our events' sample we do the =PCA= directly on the full sample:
+#+begin_src R :exports code :results output
+  evts.dd.pc <- prcomp(t(evts.ddo2))
+#+end_src
+
+#+results:
+
+We can check what the first four components look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-ddo2-pc.png :results graphics
+  layout(matrix(1:4,nr=2))
+  explore(evts.dd.pc,1,3)
+  explore(evts.dd.pc,2,3)
+  explore(evts.dd.pc,3,3)
+  explore(evts.dd.pc,4,3)
+#+end_src
+
+#+CAPTION: PCA of =evts.dd.o2= exploration (PC 1 to 4). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 3 x PC (red), the mean - 3 x PC (blue) for each of the first 4 PCs. The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.
+#+LABEL: fig:evts-ddo2-pc
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-ddo2-pc.png]]
+
+The plot suggest that the first 3 PCs should be enough since the fourth looks "wiggly" as if it were noise.
+
+Another way to get an upper bound on the number of PCs to keep is to compare the sample variance to the one of the noise plus a few of the first PCs:
+#+begin_src R :exports both :results output
+  round(sapply(1:10, function(i) sum(diag(cov(t(noise.dd))))+sum(evts.dd.pc$sdev[1:i]^2))-sum(evts.dd.pc$sdev^2))
+#+end_src
+
+#+results:
+:  [1] -25 -16 -10  -4   1   5   9  13  15  17
+
+That suggest that 4 should be more than enough. We look next at static projections:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-ddo2-pc-scatter-plot.png :results graphics
+  pairs(evts.dd.pc$x[,1:4],pch=".",gap=0,diag.panel=panel.dens)
+#+end_src
+
+#+CAPTION: Scatter plot matrix of the projections of evts.dd onto the planes defined by the first 4 PCs. The diagonal shows a smooth (Gaussian kernel based) density estimate of the projection of the sample on the corresponding PC.
+#+LABEL: fig:evts-ddo2-pc-scatter-plot
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-ddo2-pc-scatter-plot.png]]
+
+Based on this series of plots we decide to go ahead and cluster using the first 3 PCs.
+
+* Clustering
+** Using the low-pass subtracted first derivative =lDdB=
+Inspection of the projections as well as dynamic visualization suggest that =kmeans= should do fine here. After trying a model with 5 units we switch to one with 6:
+#+begin_src R :exports code :results output
+  set.seed(20061001,kind="Mersenne-Twister")
+  nb.clust.dB <- 6
+  km.dB.res <- kmeans(evts.dB.pc$x[,1:4],
+                      centers=nb.clust.dB,
+                      iter.max=100,
+                      nstart=100)
+  c.dB.res <- km.dB.res$cluster
+  cluster.dB.med <- sapply(1:nb.clust.dB,
+                           function(cIdx) median(evts.dBo2[,good.dB][,c.dB.res==cIdx])
+                           )
+  sizeC.dB <- sapply(1:nb.clust.dB,
+                     function(cIdx) sum(abs(cluster.dB.med[,cIdx]))
+                     )
+  newOrder.dB <- sort.int(sizeC.dB,decreasing=TRUE,index.return=TRUE)$ix
+  cluster.dB.mad <- sapply(1:nb.clust.dB,
+                           function(cIdx) {
+                            ce <- t(evts.dBo2[,good.dB])
+                            ce <- ce[c.dB.res==cIdx,]
+                            apply(ce,2,mad)
+                          }
+                          )
+  cluster.dB.med <- cluster.dB.med[,newOrder.dB]
+  cluster.dB.mad <- cluster.dB.mad[,newOrder.dB]
+  c.dB.res.b <- sapply(1:nb.clust.dB,
+                       function(idx) (1:nb.clust.dB)[newOrder.dB==idx]
+                       )[c.dB.res]
+#+end_src
+
+#+results:
+
+The sorted events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dBo2-sorted.png :results graphics
+  layout(matrix(1:nb.clust.dB,nr=nb.clust.dB))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust.dB,
+                   function(cIdx)
+                   plot(evts.dBo2[,good.dB][,c.dB.res.b==cIdx],y.bar=5)
+                   )
+            )
+#+end_src
+
+#+CAPTION: The 6 clusters. Cluster 1 at the top, cluster 6 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-dBo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dBo2-sorted.png]]
+
+Cluster 3 and 4 have some extra weird events attributed to them. That apart, things look reasonable. We check things with =GGobi= after generating a =csv= file with:
+#+begin_src R :exports code :eval never
+write.csv(cbind(evts.dB.pc$x[,1:6],c.dB.res.b),file="evts-dB-sorted.csv")
+#+end_src
+
+We can align them on their cluster center:
+#+begin_src R :exports both :results output
+  ujL.dB <- lapply(1:length(unique(c.dB.res.b)),
+                   function(cIdx)
+                   alignWithProcrustes(sp.dB[good.dB][c.dB.res.b==cIdx],lDdB,19,30)
+                   )
+#+end_src
+
+#+results:
+#+begin_example
+ Template difference: 1.168, tolerance: 1
+_______________________
+Template difference: 0.327, tolerance: 1
+_______________________
+Template difference: 2.029, tolerance: 1
+_______________________
+Template difference: 1.106, tolerance: 1
+_______________________
+Template difference: 0.438, tolerance: 1
+_______________________
+Template difference: 1.402, tolerance: 1
+_______________________
+Template difference: 1.151, tolerance: 1
+_______________________
+Template difference: 0.828, tolerance: 1
+_______________________
+Template difference: 1.516, tolerance: 1
+_______________________
+Template difference: 0.662, tolerance: 1
+_______________________
+Template difference: 1.564, tolerance: 1
+_______________________
+Template difference: 0.822, tolerance: 1
+_______________________
+Template difference: 1.039, tolerance: 1
+_______________________
+Template difference: 0.499, tolerance: 1
+_______________________
+#+end_example
+
+The aligned events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dBo2-sorted-aligned.png :results graphics
+  layout(matrix(1:nb.clust.dB,nr=nb.clust.dB))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust.dB,
+                     function(cIdx)
+                     plot(ujL.dB[[cIdx]],y.bar=5)
+                     )
+              )
+#+end_src
+
+#+CAPTION: The 6 clusters after alignment on the clusters' centers. Cluster 1 at the top, cluster 6 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-dBo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dBo2-sorted-aligned.png]]
+
+We get our summary plot:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-dBo2-sorted-summary.png :results graphics
+  library(ggplot2)
+  template.med <- sapply(1:nb.clust.dB,function(i) median(ujL.dB[[i]]))
+  template.mad <- sapply(1:nb.clust.dB, function(i) apply(ujL.dB[[i]],1,mad))
+  sl <- 50
+  freq <- 20
+  nb.sites <- 4
+  tl <- sl*nb.sites
+  templateDF <- data.frame(x=rep(rep(rep((1:sl)/freq,nb.sites),nb.clust.dB),2),
+                           y=c(as.vector(template.med),as.vector(template.mad)),
+                           channel=as.factor(rep(rep(rep(1:nb.sites,each=sl),nb.clust.dB),2)),
+                           template=as.factor(rep(rep(1:nb.clust.dB,each=tl),2)),
+                           what=c(rep("mean",tl*nb.clust.dB),rep("SD",tl*nb.clust.dB))
+                           )
+  print(qplot(x,y,data=templateDF,
+              facets=channel ~ template,
+              geom="line",colour=what,
+              xlab="Time (ms)",
+              ylab="Amplitude",
+              size=I(0.5)) +
+        scale_x_continuous(breaks=0:7)
+        )
+  
+#+end_src
+
+#+CAPTION: Summary plot with the 6 templates corresponding to the robust estimate of the mean of each cluster. A robust estimate of the clusters' SD is also shown. All graphs are on the same scale to facilitate comparison. Columns correspond to clusters and rows to recording sites.
+#+LABEL: fig:evts-dBo2-sorted-summary
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-dBo2-sorted-summary.png]]
+
+** Using the high-passed version =lDfir=
+Based on the previous section we use =kmeans= clustering with 6 centers:
+#+begin_src R :exports code :results output
+  set.seed(20061001,kind="Mersenne-Twister")
+  nb.clust.fir <- 6
+  km.fir.res <- kmeans(evts.fir.pc$x[,1:4],
+                      centers=nb.clust.fir,
+                      iter.max=100,
+                      nstart=100)
+  c.fir.res <- km.fir.res$cluster
+  cluster.fir.med <- sapply(1:nb.clust.fir,
+                           function(cIdx) median(evts.firo2[,good.fir][,c.fir.res==cIdx])
+                           )
+  sizeC.fir <- sapply(1:nb.clust.fir,
+                     function(cIdx) sum(abs(cluster.fir.med[,cIdx]))
+                     )
+  newOrder.fir <- sort.int(sizeC.fir,decreasing=TRUE,index.return=TRUE)$ix
+  cluster.fir.mad <- sapply(1:nb.clust.fir,
+                           function(cIdx) {
+                            ce <- t(evts.firo2[,good.fir])
+                            ce <- ce[c.fir.res==cIdx,]
+                            apply(ce,2,mad)
+                          }
+                          )
+  cluster.fir.med <- cluster.fir.med[,newOrder.fir]
+  cluster.fir.mad <- cluster.fir.mad[,newOrder.fir]
+  c.fir.res.b <- sapply(1:nb.clust.fir,
+                       function(idx) (1:nb.clust.fir)[newOrder.fir==idx]
+                       )[c.fir.res]
+#+end_src
+
+#+results:
+
+The sorted events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-firo2-sorted.png :results graphics
+  layout(matrix(1:nb.clust.fir,nr=nb.clust.fir))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust.fir,
+                   function(cIdx)
+                   plot(evts.firo2[,good.fir][,c.fir.res.b==cIdx],y.bar=5)
+                   )
+            )
+#+end_src
+
+#+CAPTION: The 6 clusters. Cluster 1 at the top, cluster 6 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-firo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-firo2-sorted.png]]
+
+Cluster 2 and 3 have some extra weird events attributed to them. That apart, things look reasonable. We check things with =GGobi= after generating a =csv= file with:
+#+begin_src R :exports code :eval never
+  write.csv(cbind(evts.fir.pc$x[,1:6],c.fir.res.b),file="evts-fir-sorted.csv")
+#+end_src
+We can align them on their cluster center:
+#+begin_src R :exports both :results output
+  ujL.fir <- lapply(1:length(unique(c.fir.res.b)),
+                   function(cIdx)
+                   alignWithProcrustes(sp.fir[good.fir][c.fir.res.b==cIdx],lDfir,19,30)
+                   )
+#+end_src
+
+#+results:
+#+begin_example
+ Template difference: 0.869, tolerance: 1
+_______________________
+Template difference: 0.941, tolerance: 1
+_______________________
+Template difference: 0.865, tolerance: 1
+_______________________
+Template difference: 1.052, tolerance: 1
+_______________________
+Template difference: 0.848, tolerance: 1
+_______________________
+Template difference: 1.159, tolerance: 1
+_______________________
+Template difference: 0.652, tolerance: 1
+_______________________
+Template difference: 0.902, tolerance: 1
+_______________________
+#+end_example
+
+The aligned events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-firo2-sorted-aligned.png :results graphics
+  layout(matrix(1:nb.clust.fir,nr=nb.clust.fir))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust.fir,
+                     function(cIdx)
+                     plot(ujL.fir[[cIdx]],y.bar=5)
+                     )
+              )
+#+end_src
+
+#+CAPTION: The 6 clusters after alignment on the clusters' centers. Cluster 1 at the top, cluster 6 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-firo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-firo2-sorted-aligned.png]]
+
+We get our summary plot:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-firo2-sorted-summary.png :results graphics
+  library(ggplot2)
+  template.med <- sapply(1:nb.clust.fir,function(i) median(ujL.fir[[i]]))
+  template.mad <- sapply(1:nb.clust.fir, function(i) apply(ujL.fir[[i]],1,mad))
+  sl <- 50
+  freq <- 20
+  nb.sites <- 4
+  tl <- sl*nb.sites
+  templateDF <- data.frame(x=rep(rep(rep((1:sl)/freq,nb.sites),nb.clust.fir),2),
+                           y=c(as.vector(template.med),as.vector(template.mad)),
+                           channel=as.factor(rep(rep(rep(1:nb.sites,each=sl),nb.clust.fir),2)),
+                           template=as.factor(rep(rep(1:nb.clust.fir,each=tl),2)),
+                           what=c(rep("mean",tl*nb.clust.fir),rep("SD",tl*nb.clust.fir))
+                           )
+  print(qplot(x,y,data=templateDF,
+              facets=channel ~ template,
+              geom="line",colour=what,
+              xlab="Time (ms)",
+              ylab="Amplitude",
+              size=I(0.5)) +
+        scale_x_continuous(breaks=0:7)
+        )
+  
+#+end_src
+
+#+CAPTION: Summary plot with the 6 templates corresponding to the robust estimate of the mean of each cluster. A robust estimate of the clusters' SD is also shown. All graphs are on the same scale to facilitate comparison. Columns correspond to clusters and rows to recording sites.
+#+LABEL: fig:evts-firo2-sorted-summary
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-firo2-sorted-summary.png]]
+
+** COMMENT Using the second derivative =evts.dd=
+
+What follows is the outcome of my third attempt. I started with 3 clusters, reduced to 2 and settle to 4...
+
+A simple =k-means= should do the job here:
+#+begin_src R :exports code :results output
+  set.seed(20061001,kind="Mersenne-Twister")
+  nb.clust <- 4
+  km.res <- kmeans(evts.dd.pc$x[,1:3],
+                   centers=nb.clust,
+                   iter.max=100,
+                   nstart=100)
+  c.res <- km.res$cluster
+  cluster.med <- sapply(1:nb.clust,
+                        function(cIdx) median(evts.ddo2[,c.res==cIdx])
+                        )
+  sizeC <- sapply(1:nb.clust,
+                  function(cIdx) sum(abs(cluster.med[,cIdx]))
+                  )
+  newOrder <- sort.int(sizeC,decreasing=TRUE,index.return=TRUE)$ix
+  cluster.mad <- sapply(1:nb.clust,
+                        function(cIdx) {
+                          ce <- t(evts.ddo2)
+                          ce <- ce[c.res==cIdx,]
+                          apply(ce,2,mad)
+                        }
+                        )
+  cluster.med <- cluster.med[,newOrder]
+  cluster.mad <- cluster.mad[,newOrder]
+  c.res.b <- sapply(1:nb.clust,
+                    function(idx) (1:nb.clust)[newOrder==idx]
+                    )[c.res]
+  
+#+end_src
+
+#+results:
+
+The sorted events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-ddo2-sorted.png :results graphics
+  layout(matrix(1:nb.clust,nr=nb.clust))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust,
+                   function(cIdx)
+                   plot(evts.ddo2[,c.res.b==cIdx],y.bar=5)
+                   )
+            )
+#+end_src
+
+#+CAPTION: The 4 clusters. Cluster 1 at the top, cluster 3 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-ddo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-ddo2-sorted.png]]
+
+We can align them on their cluster center:
+#+begin_src R :exports both :results output
+  ujL <- lapply(1:length(unique(c.res.b)),
+                function(cIdx)
+                alignWithProcrustes(sp.dd[c.res.b==cIdx],lDdd,5,6)
+                )
+#+end_src
+
+#+results:
+#+begin_example
+ Template difference: 3.332, tolerance: 1
+_______________________
+Template difference: 1.454, tolerance: 1
+_______________________
+Template difference: 0.828, tolerance: 1
+_______________________
+Template difference: 2.913, tolerance: 1
+_______________________
+Template difference: 1.664, tolerance: 1
+_______________________
+Template difference: 1.634, tolerance: 1
+_______________________
+Template difference: 1.088, tolerance: 1
+_______________________
+Template difference: 1.041, tolerance: 1
+_______________________
+Template difference: 0.726, tolerance: 1
+_______________________
+Template difference: 2.947, tolerance: 1
+_______________________
+Template difference: 2.722, tolerance: 1
+_______________________
+Template difference: 1.758, tolerance: 1
+_______________________
+Template difference: 1.277, tolerance: 1
+_______________________
+Template difference: 1.009, tolerance: 1
+_______________________
+Template difference: 0.61, tolerance: 1
+_______________________
+Template difference: 1.689, tolerance: 1
+_______________________
+Template difference: 1.212, tolerance: 1
+_______________________
+Template difference: 0.851, tolerance: 1
+_______________________
+#+end_example
+
+The aligned events look like:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-ddo2-sorted-aligned.png :results graphics
+  layout(matrix(1:nb.clust,nr=nb.clust))
+  par(mar=c(1,1,1,1))
+  invisible(sapply(1:nb.clust,
+                     function(cIdx)
+                     plot(ujL[[cIdx]],y.bar=5)
+                     )
+              )
+#+end_src
+
+#+CAPTION: The 4 clusters after alignment on the clusters' centers. Cluster 1 at the top, cluster 3 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=.
+#+LABEL: fig:evts-ddo2-sorted
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-ddo2-sorted-aligned.png]]
+
+Cluster 3 looks a bit strange. We get our summary plot:
+#+header :width 5000 :height 5000
+#+begin_src R :file evts-ddo2-sorted-summary.png :results graphics
+  template.med <- sapply(1:nb.clust,function(i) median(ujL[[i]]))
+  template.mad <- sapply(1:nb.clust, function(i) apply(ujL[[i]],1,mad))
+  sl <- 12
+  freq <- 20
+  nb.sites <- 4
+  tl <- sl*nb.sites
+  templateDF <- data.frame(x=rep(rep(10*rep((1:sl)/freq,nb.sites),nb.clust),2),
+                           y=c(as.vector(template.med),as.vector(template.mad)),
+                           channel=as.factor(rep(rep(rep(1:nb.sites,each=sl),nb.clust),2)),
+                           template=as.factor(rep(rep(1:nb.clust,each=tl),2)),
+                           what=c(rep("mean",tl*nb.clust),rep("SD",tl*nb.clust))
+                           )
+  print(qplot(x,y,data=templateDF,
+              facets=channel ~ template,
+              geom="line",colour=what,
+              xlab="Time (1/10 ms)",
+              ylab="Amplitude",
+              size=I(0.5)) +
+        scale_x_continuous(breaks=0:7)
+        )
+  
+#+end_src
+
+#+CAPTION: Summary plot with the 4 templates corresponding to the robust estimate of the mean of each cluster. A robust estimate of the clusters' SD is also shown. All graphs are on the same scale to facilitate comparison. Columns correspond to clusters and rows to recording sites.
+#+LABEL: fig:evts-ddo2-sorted-summary
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:evts-ddo2-sorted-summary.png]]
+

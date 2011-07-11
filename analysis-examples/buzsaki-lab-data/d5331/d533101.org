@@ -1,0 +1,597 @@
+#+TITLE: Analysis of d533101 Data Set
+#+AUTHOR: Christophe Pouzat and Felix Franke
+#+BABEL: :session *R* 
+#+STYLE: <link rel="stylesheet" title="Standard" href="http://orgmode.org/worg/style/worg.css" type="text/css" />
+#+STYLE: <link rel="alternate stylesheet" title="Zenburn" href="http://orgmode.org/worg/style/worg-zenburn.css" type="text/css" />
+#+STYLE: <link rel="alternate stylesheet" title="Classic" href="http://orgmode.org/worg/style/worg-classic.css" type="text/css" />
+#+STYLE: <link rel="stylesheet" href="http://orgmode.org/css/lightbox.css" type="text/css" media="screen" />
+
+* The data
+
+** Location and origin
+The data set is contained in file =d533101.dat.gz= which is located in subfolder =DonneesExtraCellulaires/HippocampeRat= of the =Dropbox= folder. These data are freely available (after registration) from the [[http://crcns.org/][Collaborative Research in Computational Neuroscience]] (CRCNS) web site. They are located in folder [[http://crcns.org/data-sets/hc/hc-1][hc-1]].
+
+** Information about the data
+This data set was contributed by Gyorgy Buzsáki lab, Rutgers University.
+The data set is made of recordings on 8 channels:
++ channels 2, 3, 4 and 5 are the four recording sites of a tetrode
++ channel 6 is an intracellular recording from one of the neurons recorded by the tetrode.
+The sampling rate was 10 kHz. This stuff is what is reported in the =README.txt= file associated with the data.
+
+** Loading the data
+The data are simply loaded, once we know where to find them and if we do not forget that they have been compressed with =gzip=. We will assume here that the data are located in =R='s =working directory=:
+#+srcname: load-d533101-data-set
+#+begin_src R :exports code :results silent
+  dN <- "d533101.dat.gz"
+  nb <- 8*10000000
+  mC <- gzfile(dN,open="rb")
+  d1 <- matrix(readBin(mC,what="int",size=2,n=nb),nr=8)
+  close(mC)
+#+end_src
+We can check that we have loaded the whole set since in that case the number of columns of our matrix =d1= should be smaller than =10e6=:
+#+srcname: check-d1-dim
+#+begin_src R :exports both :results output
+dim(d1)
+#+end_src 
+
+#+results: check-d1-dim
+: [1]       8 2400256
+
+So everthing was loaded. In terms of recording duration we get (in minutes):
+#+srcname: d533101-recording-duration
+#+begin_src R :exports both :results output
+dim(d1)[2]/1e4/60
+#+end_src
+
+#+results: d533101-recording-duration
+: [1] 4.000427
+
+We can quickly check that we did not commit any major mistake while loading the data by looking at one second of intracellular trace in the middle of the set:
+#+srcname: plot-ten-seconds-channel-6
+#+header :width 1000 :height 1000
+#+begin_src R :file ten-sec-intra.png :results graphics
+plot(window(ts(d1[6,],start=0,freq=1e4),120,130),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: Ten seconds of recording of channel 6 (the intracellular channel) of  data set =d533101=. The snapshot is from the central part of the recording.
+#+LABEL: fig:ten-sec-intra
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:ten-sec-intra.png]]
+
+We do the same for the extracellular channels, except that for clarity we plot only one second of data since they are not high-pass filtered:
+#+srcname: plot-one-second-channel-2-to-5
+#+header :width 1000 :height 1000
+#+begin_src R :file one-sec-extra.png :results graphics
+plot(window(ts(t(d1[2:5,]),start=0,freq=1e4),120,121),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: One second of recording of channels 2 to 5 (the tetrode channels) of  data set =d533101=. The snapshot is from the central part of the recording.
+#+LABEL: fig:one-sec-extra
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:one-sec-extra.png]]
+
+** Five numbers data summary
+We get our classical five numbers plus mean data summary:
+#+srcname: summary-d1
+#+begin_src R :exports both :results value :colnames yes
+summary(t(d1[2:6,]))
+#+end_src
+
+#+results: summary-d1
+| V1           | V2           | V3           | V4           | V5           |
+|--------------+--------------+--------------+--------------+--------------|
+| Min.   :1093 | Min.   :1152 | Min.   :1185 | Min.   :1204 | Min.   :1114 |
+| 1st Qu.:1909 | 1st Qu.:1929 | 1st Qu.:1926 | 1st Qu.:1929 | 1st Qu.:1391 |
+| Median :2050 | Median :2049 | Median :2046 | Median :2048 | Median :1415 |
+| Mean   :2050 | Mean   :2050 | Mean   :2049 | Mean   :2049 | Mean   :1415 |
+| 3rd Qu.:2191 | 3rd Qu.:2170 | 3rd Qu.:2170 | 3rd Qu.:2167 | 3rd Qu.:1442 |
+| Max.   :2979 | Max.   :2833 | Max.   :2848 | Max.   :2836 | Max.   :2193 |
+
+We see that the four extracellular channels making the tetrode (columns labeled =V1= to =V4= in the above table) have similar summaries. The summary of the intracellular channel follows a different pattern (column =V5=). Given the maximal values observed we can guess that the A/D card used was probably a 12 bit one.
+
+** Data selection for generative model estimation
+
+We are going to work with the first minute of acquired data to estimate our generative model:
+#+srcname: create-lD
+#+begin_src R :exports code :results output
+  lD <- window(ts(t(d1[2:5,]),start=0,freq=1e4),0,60)
+  rm(d1)
+#+end_src
+
+#+results: create-lD
+
+Here we also remove our big =d1= matrix in order to save memory.
+
+* The software
+We start by loading file sorting.R containing the sorting specific functions from the web. These functions will soon be organized as a "propoper" R package. The URL of the file is http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R so the loadig is done with :
+#+begin_src R :exports code :results output
+  source("http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Code_folder/sorting.R")
+#+end_src 
+
+#+results:
+
+* Data pre-processing
+
+Since the extracellular data were not high-pass filtered we will try to run the analysis on their derivatives since taking derivatives high-pass filter the data and reduces spike duration which is good when one deals with overlaps.
+#+srcname: take-first-derivative-of-lD
+#+begin_src R :exports code :results output
+lDd <- apply(lD,2,function(x) c(0,diff(x,2)/2,0))
+lDd <- ts(lDd,start=0,freq=1e4)
+#+end_src
+
+#+results: take-first-derivative-of-lD
+
+We get a summary of our derivatives:
+#+srcname: summary-lDd
+#+begin_src R :exports both :results value :colnames yes
+summary(lDd)
+#+end_src
+
+#+results: summary-lDd
+| Series 1           | Series 2          | Series 3           | Series 4           |
+|--------------------+-------------------+--------------------+--------------------|
+| Min.   :-2.735e+02 | Min.   :-2.31e+02 | Min.   :-2.340e+02 | Min.   :-2.540e+02 |
+| 1st Qu.:-7.000e+00 | 1st Qu.:-6.50e+00 | 1st Qu.:-6.500e+00 | 1st Qu.:-7.000e+00 |
+| Median : 0.000e+00 | Median : 0.00e+00 | Median : 0.000e+00 | Median : 0.000e+00 |
+| Mean   :-4.617e-04 | Mean   :-2.85e-04 | Mean   :-1.967e-04 | Mean   :-2.092e-04 |
+| 3rd Qu.: 7.000e+00 | 3rd Qu.: 6.50e+00 | 3rd Qu.: 6.500e+00 | 3rd Qu.: 7.000e+00 |
+| Max.   : 3.115e+02 | Max.   : 2.66e+02 | Max.   : 2.655e+02 | Max.   : 2.855e+02 |
+
+And we can plot the first 10 seconds:
+#+srcname: plot-ten-seconds-lDd
+#+header :width 1500 :height 1500
+#+begin_src R :file ten-sec-lDd.png :results graphics
+plot(window(lDd,0,10),ylab="",xlab="Time (s)",main="")
+#+end_src
+
+#+CAPTION: First 10 sec of the first derivative of recording of channels 2 to 5 (the tetrode channels) of  data set =d533101=.
+#+LABEL: fig:ten-sec-lDd
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:ten-sec-lDd.png]]
+
+Here explore the data interactively is a must:
+#+srcname: explore-lDd
+#+begin_src R :exports results  :results output
+quote(explore(lDd))
+#+end_src
+
+#+results: explore-lDd
+: explore(lDd)
+
+** Data renormalization
+
+We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][median absolute deviation]] (=MAD=) based renormalization. The goal of the procedure is to scale the raw data such that the /noise SD/ is approximately 1. Since it is not straightforward to obtain a noise SD on data where both signal (/i.e./, spikes) and noise are present, we use this [[http://en.wikipedia.org/wiki/Robust_statistics][robust]] type of statistic for the SD. Luckily this is simply obtained in =R=:
+#+srcname: get-lDd-mad
+#+begin_src R :exports code :results silent 
+lDd.mad <- apply(lDd,2,mad)
+lDd <- t(t(lDd)/lDd.mad)
+lDd <- ts(lDd,start=0,freq=1e4)
+#+end_src
+
+where the last line of code ensures that =lDd= is still an =mts= object. We can check on a plot how =MAD= and =SD= compare:
+#+srcname: site1-with-MAD-and-SD
+#+header :width 1000 :height 1000
+#+begin_src R :file site1-with-MAD-and-SD.png :results graphics
+plot(window(lDd[,1],0,0.2))
+abline(h=c(-1,1),col=2)
+abline(h=c(-1,1)*sd(lDd[,1]),col=4,lty=2,lwd=2)
+#+end_src
+
+#+CAPTION: First 200 ms on site 1 of the derivative of data set =d533101=. In red: +/- the =MAD=; in dashed blue +/- the =SD=.
+#+LABEL: fig:site1-with-MAD-and-SD
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:site1-with-MAD-and-SD.png]]
+
+** A quick check that the =MAD= "does its job"
+
+We can check that the =MAD= does its job as a robust estimate of the /noise/ standard deviation by looking at the fraction of samples whose absolute value is larger than a multiple of the =MAD= and compare this fraction to the expected one for a normal distribution whose =SD= equals the empirical =MAD= value:
+#+srcname: check-MAD
+#+header :width 1000 :height 1000
+#+begin_src R :file check-MAD.png :results graphics
+  sdV <- seq(0.1,7,0.02)
+  fRej <- apply(lDd,2,
+                function(x) {
+                  n <- length(x)
+                  sapply(sdV, function(s) sum(abs(x) > s))/n
+                }
+                )
+  fRej2 <- apply(lDd,2,
+                 function(x) {
+                   n <- length(x)
+                   x <- x/sd(x)
+                   sapply(sdV, function(s) sum(abs(x) > s))/n
+                 }
+                 )
+  plot(sdV,2*pnorm(-sdV),
+       type="l",col=1,lwd=2,lty=2,
+       log="y",ylim=c(1e-3,1),
+       xlab="Treshold on |x|",ylab="Rejected fraction")
+  matlines(sdV,fRej,lty=1)
+  matlines(sdV,fRej2,lty=2)
+#+end_src
+
+#+CAPTION: Performances of =MAD= based vs =SD= based normalizations. After normalizing the data of each recording site by its =MAD= (plain colored curves) or its =SD= (dashed colored curves), the fraction of sampling whose absolute value exceeds a threshold was obtained and is compared to a pure normally distributed case (thick dashed black curve). 
+#+LABEL: fig:check-MAD
+#+ATTR_LaTeX: width=0.8\textwidth
+#+results:
+[[file:check-MAD.png]]
+
+* Spike detection and events' matrix construction
+After playing around a bit with thresholds we decided to detect /valleys/ bellow -3.5 times the =MAD=:
+#+srcname: detect-spikes
+#+begin_src R 
+thrs <- rep(-3.5,4)
+above.thrs <- t(t(lDd) > thrs)
+lDdr <- lDd
+lDdr[above.thrs] <- 0
+sp1 <- peaks(apply(-lDdr,1,sum),15)
+rm(lDdr)
+#+end_src
+
+#+results: detect-spikes
+
+A brief description of the detection is obtained with:
+#+begin_src R :exports both :results output
+sp1
+#+end_src
+
+#+results:
+: 
+: eventsPos object with indexes of 1863 events. 
+:   Mean inter event interval: 321.88 sampling points, corresponding SD: 313.45 sampling points 
+:   Smallest and largest inter event intervals: 8 and 2381 sampling points.
+
+** Getting the right cuts length
+After detecting our spikes, we must make our cuts in order to create our events' sample. The obvious question we must first address is: How long should our cuts be? The pragmatic way to get an answer is:
++ Make cuts much longer than what we think is necessary, like 25 sampling points on both sides of the detected event's time.
++ Compute robust estimates of the "central" event (with the median) and of the dispersion of the sample around this central event (with the MAD).
++ Plot the two together and check when does the MAD trace reach the background noise level (at 1 since we have normalized the data).
++ Having the central event allows us to see if it outlasts significantly the region where the MAD is above the background noise level.
+
+Clearly cutting beyond the time at which the MAD hits back the noise level should not bring any useful information as far a classifying the spikes is concerned. So here we perform this task as follows: 
+#+begin_src R :results silent
+evtsE <- mkEvents(sp1,lDd,24,25)
+evtsE.med <- median(evtsE)
+evtsE.mad <- apply(evtsE,1,mad)
+#+end_src
+
+
+#+header :width 1000 :height 1000
+#+begin_src R :file get-cut-length.png :results graphics
+  plot(evtsE.med,type="n",ylab="Amplitude",
+       ylim=range(c(evtsE.med,evtsE.mad))
+       )
+  abline(v=seq(0,200,5),col="grey")
+  abline(h=c(0,1),col="grey")
+  lines(evtsE.med,lwd=2)
+  lines(evtsE.mad,col=2,lwd=2)
+#+end_src
+
+#+caption: Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (50 sampling points) cuts. We see clearly that the dispersion is back to noise level 5 points before the peak and 10 points after the peak (on all sites).
+#+results:
+[[file:get-cut-length.png]]
+
+** Events' matrix
+
+We proceed with the construction of the events' matrix:
+#+begin_src R :results output
+evtsE <- mkEvents(sp1,lDd,4,10)
+summary(evtsE)
+#+end_src
+
+#+results:
+: 
+: events object deriving from data set: lDd.
+:  Events defined as cuts of 15 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 5 of the cut.
+:  There are 1863 events in the object.
+
+The first 200 events look like:
+#+header :width 1000 :height 1000
+#+begin_src R :file first-200-events.png :results graphics
+evtsE[,1:200]
+#+end_src
+
+#+caption: The first 200 events.
+#+results:
+[[file:first-200-events.png]]
+
+** Noise matrix
+
+After the events we get the noise:
+#+begin_src R :results output :exports both
+noiseE <- mkNoise(sp1,lDd,4,10,safetyFactor=2.5,2000)
+summary(noiseE)
+#+end_src
+
+#+results:
+: 
+: events object deriving from data set: lDd.
+:  Events defined as cuts of 15 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 5 of the cut.
+:  There are 2000 events in the object.
+
+** Events alignement on "central" event
+We now align each event on the "central" event (/i.e./, the pointwise median of the events matrix):
+#+begin_src R :results output
+evtsEo2 <- alignWithProcrustes(sp1,lDd,4,10,maxIt=1,plot=FALSE)
+summary(evtsEo2)
+#+end_src
+
+#+results:
+: 
+: events object deriving from data set: lDd.
+:  Events defined as cuts of 15 sampling points on each of the 4 recording sites.
+:  The 'reference' time of each event is located at point 5 of the cut.
+:  Events were realigned on median event.
+:  There are 1863 events in the object.
+
+We can check the result on the first 200 events:
+#+header :width 1000 :height 1000
+#+begin_src R :file first-200-aligned-events.png :results graphics
+evtsEo2[,1:200]
+#+end_src
+
+#+caption: The first 200 aligned events.
+#+results:
+[[file:first-200-aligned-events.png]]
+
+* Dimension reduction and clustering
+
+** Dimension reduction
+Since we don't seem to have so many superposed events, we do not "clean" our sample and go directly to the =PCA=:
+#+begin_src R :results silent
+evtsE.pc <- prcomp(t(evtsEo2))
+#+end_src
+
+We can quickly check what the first principal components represent:
+#+header :width 2000 :height 2000
+#+begin_src R :file first-4-PC.png :results graphics
+layout(matrix(1:4,nr=2))
+explore(evtsE.pc,1,3)
+explore(evtsE.pc,2,3)
+explore(evtsE.pc,3,3)
+explore(evtsE.pc,4,3)
+#+end_src
+
+#+caption: First four principal components computed from =evtsEo2=. The components are added to the mean event (black curve) after a multiplication by three (red) or minus three (blue).
+#+results:
+[[file:first-4-PC.png]]
+
+We see that components 1 is an amplitude component while the next three ones are shape components.
+The scatter plot matrix of the loadings on the first 6 PCs is easily built:
+#+header :width 3000 :height 3000
+#+begin_src R :file scatter-plot-matrix-6PC.png :results graphics
+pairs(evtsE.pc$x[,1:6],pch=".")
+#+end_src
+
+#+caption: Scatter plot matrix of =evtsEo2= loadings on the first 6 PCs.
+#+results:
+[[file:scatter-plot-matrix-6PC.png]]
+This plot suggest that working with the first 4 PCs should be enough. We next export the data for vizualisation with =GGobi=:
+#+begin_src R 
+write.csv(evtsE.pc$x[,1:6],file="evtsE.csv")
+#+end_src
+
+#+results:
+The dynamic vizualisation shows 4 clusters, two of them being rather close plus a sparse elongated structure. It also suggests that using components 5 and 6 does not bring anything. We can also get a more objective "upper bound" on the number of PCs we should use by comparing our sample variance:
+#+begin_src R :exports both
+round(sum(evtsE.pc$sdev^2))
+#+end_src
+
+#+results:
+: 385
+
+With the variance of =k= of the first PCs plus the noise variance:
+#+begin_src R :exports both
+  k <- 1:10
+  rbind(k,
+        round(sum(diag(cov(t(noiseE))))+sapply(k,
+                                               function(i) sum(evtsE.pc$sdev[1:i]^2)
+                                               )
+              )
+        )
+#+end_src
+
+#+results:
+|   1 |   2 |   3 |   4 |   5 |   6 |   7 |   8 |   9 |  10 |
+| 256 | 341 | 364 | 378 | 385 | 392 | 398 | 403 | 407 | 409 |
+
+We see that the first 5 PCs are enough to explain the extra variability of the events' sample compared to the noise.
+
+** Clustering
+We cluster with =kmeans= using 5 clusters and the first 4 PCs:
+#+begin_src R :results output
+set.seed(20061001,kind="Mersenne-Twister")
+km5 <- kmeans(evtsE.pc$x[,1:4],centers=5,iter.max=100,nstart=100)
+c5 <- km5$cluster
+#+end_src
+
+#+results:
+The number of events per cluster is:
+#+begin_src R :results output :exports both
+sapply(1:5, function(i) sum(c5==i))
+#+end_src
+
+#+results:
+: [1] 409 368 755 303  28
+
+** Cluster ordering
+To facilitate comparison, we order the clusters "the usual way":
+#+begin_src R :results output
+  cluster.med <- sapply(1:5, function(cIdx) median(evtsEo2[,c5==cIdx]))
+  sizeC <- sapply(1:5,function(cIdx) sum(abs(cluster.med[,cIdx])))
+  newOrder <- sort.int(sizeC,decreasing=TRUE,index.return=TRUE)$ix
+  cluster.mad <- sapply(1:5,
+                        function(cIdx) {
+                          ce <- t(evtsEo2)
+                          ce <- ce[c5==cIdx,]
+                          apply(ce,2,mad)
+                        }
+                        )
+  cluster.med <- cluster.med[,newOrder]
+  cluster.mad <- cluster.mad[,newOrder]
+  c5b <- sapply(1:5, function(idx) (1:5)[newOrder==idx])[c5]
+#+end_src
+
+#+results:
+
+We write export the data with their classification for vizualiation in =GGobi=:
+#+begin_src R :results output
+write.csv(cbind(evtsE.pc$x[,1:4],c5b),file="evtsEsorted.csv")
+#+end_src
+
+#+results:
+The classification looks great.
+We can next realign the events on their cluster centers:
+#+begin_src R :results output :exports both
+  ujL <- lapply(1:length(unique(c5b)),
+                function(cIdx)
+                alignWithProcrustes(sp1[c5b==cIdx],lDd,4,10)
+                )
+#+end_src
+
+#+results:
+#+begin_example
+ Template difference: 4.135, tolerance: 1
+_______________________
+Template difference: 3.038, tolerance: 1
+_______________________
+Template difference: 1.391, tolerance: 1
+_______________________
+Template difference: 0.685, tolerance: 1
+_______________________
+Template difference: 2.673, tolerance: 1
+_______________________
+Template difference: 1.145, tolerance: 1
+_______________________
+Template difference: 0.472, tolerance: 1
+_______________________
+Template difference: 3.945, tolerance: 1
+_______________________
+Template difference: 3.154, tolerance: 1
+_______________________
+Template difference: 3.028, tolerance: 1
+_______________________
+Template difference: 2.13, tolerance: 1
+_______________________
+Template difference: 1.882, tolerance: 1
+_______________________
+Template difference: 1.229, tolerance: 1
+_______________________
+Template difference: 1.053, tolerance: 1
+_______________________
+Template difference: 1.01, tolerance: 1
+_______________________
+Template difference: 0.833, tolerance: 1
+_______________________
+Template difference: 3.437, tolerance: 1
+_______________________
+Template difference: 1.588, tolerance: 1
+_______________________
+Template difference: 1.317, tolerance: 1
+_______________________
+Template difference: 1.308, tolerance: 1
+_______________________
+Template difference: 0.97, tolerance: 1
+_______________________
+Template difference: 1.71, tolerance: 1
+_______________________
+Template difference: 0.803, tolerance: 1
+_______________________
+#+end_example
+
+We can compare the classified events before and after alignment on their cluster centers:
+#+header :width 5000 :height 3000
+#+begin_src R :file cluster-1-before-afer.png :results graphics
+layout(matrix(1:2,nc=2))
+par(mar=c(1,1,1,1))
+evtsEo2[,c5b==1][,1:200]
+ujL[[1]][,1:200]
+#+end_src
+
+#+caption: First 200 events of cluster 1 before (left) and after (right) alignment on cluster center.
+#+results:
+[[file:cluster-1-before-afer.png]]
+
+#+header :width 5000 :height 3000
+#+begin_src R :file cluster-2-before-afer.png :results graphics
+layout(matrix(1:2,nc=2))
+par(mar=c(1,1,1,1))
+evtsEo2[,c5b==2][,1:200]
+ujL[[2]][,1:200]
+#+end_src
+
+#+caption: First 200 events of cluster 2 before (left) and after (right) alignment on cluster center.
+#+results:
+[[file:cluster-2-before-afer.png]]
+
+#+header :width 5000 :height 3000
+#+begin_src R :file cluster-3-before-afer.png :results graphics
+layout(matrix(1:2,nc=2))
+par(mar=c(1,1,1,1))
+evtsEo2[,c5b==3]
+ujL[[3]]
+#+end_src
+
+#+caption: Events of cluster 3 before (left) and after (right) alignment on cluster center.
+#+results:
+[[file:cluster-3-before-afer.png]]
+
+#+header :width 5000 :height 3000
+#+begin_src R :file cluster-4-before-afer.png :results graphics
+layout(matrix(1:2,nc=2))
+par(mar=c(1,1,1,1))
+evtsEo2[,c5b==4][,1:200]
+ujL[[4]][,1:200]
+#+end_src
+
+#+caption: First 200 events of cluster 4 before (left) and after (right) alignment on cluster center.
+#+results:
+[[file:cluster-4-before-afer.png]]
+
+#+header :width 5000 :height 3000
+#+begin_src R :file cluster-5-before-afer.png :results graphics
+layout(matrix(1:2,nc=2))
+par(mar=c(1,1,1,1))
+evtsEo2[,c5b==5][,1:200]
+ujL[[5]][,1:200]
+#+end_src
+
+#+caption: First 200 events of cluster 5 before (left) and after (right) alignment on cluster center.
+#+attr_html: width="80%"
+#+results:
+[[file:cluster-5-before-afer.png]]
+
+We can now generate our summary plot:
+#+header :width 5000 :height 4000
+#+begin_src R :file summary-template-plot.png :results output graphics
+library(ggplot2)
+template1E.med <- sapply(1:5,function(i) median(ujL[[i]]))
+template1E.mad <- sapply(1:5, function(i) apply(ujL[[i]],1,mad))
+template1EDF <- data.frame(x=rep(rep(rep((1:15)/10,4),5),2),
+                         y=c(as.vector(template1E.med),as.vector(template1E.mad)),
+                         channel=as.factor(rep(rep(rep(1:4,each=15),5),2)),
+                         template1E=as.factor(rep(rep(1:5,each=60),2)),
+                         what=c(rep("mean",60*5),rep("SD",60*5))
+                         )
+print(qplot(x,y,data=template1EDF,
+            facets=channel ~ template1E,
+            geom="line",colour=what,
+            xlab="Time (ms)",
+            ylab="Amplitude",
+            size=I(0.5)) +
+      scale_x_continuous(breaks=0:3)
+      )
+
+#+end_src
+
+#+caption: Summary plot of the templates obtained after alignment. Template 3 corresponds to an artifact.
+#+attr_html: width="60%"
+#+results:
+[[file:summary-template-plot.png]]
+
