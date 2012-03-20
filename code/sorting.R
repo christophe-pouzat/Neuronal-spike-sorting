@@ -2389,3 +2389,49 @@ explore.eventsPos <- function ## Explore methods for eventsPos objects
 ###########################################################################
 ###########################################################################
 ###########################################################################
+matchTemplate <- function #Compare cuts to set of templates
+### Given an object of class events and a set of template functions, a
+### systematic comparison of each event with each template is
+### performed with jitter correction.
+(evts, ##<< an object of class events
+ templateList, ##<< a list of lists template functions. One list of
+               ##functions per template and one function per recording
+               ##site.
+ interval=c(-5,5) ##<< a numeric vector of length 2, the range over
+                  ##which the jitter is minimized.
+ ) {
+  stopifnot("events" %in% class(evts))
+  before <- attr(evts,"before")
+  after <- attr(evts,"after")
+  bb <- (round(interval[1])-0.5):(round(interval[2])+0.5)
+  cc <- round(interval[1]):round(interval[2])
+  positions <- attr(evts,"positions")
+  n <- dim(evts)[2]
+  temp <- sapply(templateList,
+                 function(l) as.vector(sapply(l, function(f) f(-before:after))))
+  res <- matrix(integer(3*n),nr=3,nc=n)
+  rownames(res) <- c("clusterID","position","δx1000")
+  for (eIdx in 1:n) {
+    evt <- evts[,eIdx]
+    best <- which.min(apply((temp-evt)^2,2,sum))
+    δ <- shiftValue(evt,temp[,best],"optimize",interval=interval)
+    δprime <- δ - cc[findInterval(δ,bb)]
+    pos <- positions[eIdx] - cc[findInterval(δ,bb)]
+    res[,eIdx] <- c(best,pos,round(δprime*1000))
+  }
+  attr(res,"call") <- match.call()
+  attr(res,"data") <- attr(evts,"data")
+  attr(res,"templateList") <- templateList
+  class(res) <- c("eventsMatched","matrix")
+  res
+### A integer matrix with 3 rows: clusterID, position and δx1000 and
+### as many columns as events in evts is returned. The first row
+### contains the number / index of the best template (in the minimal
+### Euclidean distance sense), the second row contains the position in
+### sampling point of the event's peak and the third row contains the
+### jitter value multiplied by 1000 and round to the nearest
+### integer. The returned matrix has 3 attributes: call, the matched
+### call; data, the symbol of the data object used to create evts and
+### templateList, the value of the argument with that name. The
+### returned matrix is given an eventsMatched class.
+}
