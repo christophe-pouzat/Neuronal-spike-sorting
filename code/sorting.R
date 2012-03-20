@@ -2474,3 +2474,121 @@ print.eventsMatched <- function #print method for eventsMatched objects
 ###########################################################################
 ###########################################################################
 ###########################################################################
+onePerClique <- function #Select one event per clique
+### A clique is defined as a sequence of events with inter-event
+### intervals smaller than a critical length. This function identifies
+### cliques and return the single event giving the best match.
+(object, ##<< an eventsMatched object.
+ criticalLength=45, ##<< an integer, the number of sampling points
+                    ##beyond which events are not considered as
+                    ##members of the same clique.
+) {
+  stopifnot("eventsMatched" %in% class(object))
+  rawData <- eval(attr(object,"data"))
+  templateFctL <- attr(object,"templateList")
+  evtsTimes <- object["position",]
+  cliques <- list(list(1))
+  nbCliques <- 1
+  for (i in 2:length(evtsTimes)) {
+    if (evtsTimes[i]-evtsTimes[i-1] <= criticalLength) {
+      cliques[[nbCliques]][length(cliques[[nbCliques]])+1] <- i
+    } else {
+      nbCliques <- nbCliques+1
+      cliques[[nbCliques]] <- i
+    }
+  }
+  clusterV <- object["clusterID",]
+  δV <- object["δx1000",]/1000
+  len <- dim(rawData)[1]
+  x <- evalq(x,env=environment(templateFctL[[1]][[1]]))
+  selected <- integer(length(cliques))
+  for (cIdx in seq(along=cliques)) {
+    cliqueMembers <- unlist(cliques[[cIdx]])
+    nbMembers <- length(cliqueMembers)
+    if (nbMembers > 1) {
+      domain <- range(evtsTimes[cliqueMembers])+ c(-1,1)*criticalLength
+      refData <- rawData[domain[1]:domain[2],]
+      RSS <- sapply(cliqueMembers,
+                    function(mIdx) {
+                      origin <- clusterV[mIdx]
+                      δ <- δV[mIdx]
+                      fL <- templateFctL[[origin]]
+                      xx <- x+evtsTimes[mIdx]
+                      yy <- xx - domain[1] + 1
+                      keep <- domain[1] <= xx & xx <= domain[2]
+                      pred <- sapply(fL, function(f) f(x[keep]+δ))
+                      res <- refData[yy[keep],] - pred
+                      sum(res^2)
+                    })
+      keepMember <- which.min(RSS)
+      cliqueMembers <- cliqueMembers[keepMember]
+    }
+    selected[cIdx] <- cliqueMembers
+  }
+  selected
+### A vector of indexes with the column of object selected as "best" event in each clique.
+}
+###########################################################################
+###########################################################################
+###########################################################################
+predict.eventsMatched <- function #predict method for eventsMatched objects
+### Here prediction is understood as complete data predicition, the
+### data being the raw data from which the eventsMatched object was
+### derived.
+(object, ##<< an eventsMatched object.
+ ... ##<< not used but required for compatibility with generic predict method.
+ ) {
+  rawData <- eval(attr(object,"data"))
+  templateFctL <- attr(object,"templateList")
+  evtsTimes <- object["position",]
+  clusterV <- object["clusterID",]
+  δV <- object["δx1000",]/1000
+  if ("ts" %in% class(rawData)) {
+    freq <- frequency(rawData)
+    start <- start(rawData)[1]
+    makeTS <- TRUE
+  } else {
+    makeTS <- FALSE
+  }
+  len <- dim(rawData)[1]
+  idealData <- matrix(0,nr=len,nc=dim(rawData)[2])
+  x <- evalq(x,env=environment(templateFctL[[1]][[1]]))
+  for (eIdx in seq(along=δV)) {
+    origin <- clusterV[eIdx]
+    δ <- δV[eIdx]
+    fL <- templateFctL[[origin]]
+    xx <- x+evtsTimes[eIdx]
+    keep <- 1 <= xx & xx <= len
+    pred <- sapply(fL, function(f) f(x[keep]+δ))
+    idealData[xx[keep],] <- idealData[xx[keep],] + pred
+  }
+  if (makeTS) ts(idealData,frequency=freq,start=start)
+  else idealData
+### A vector, matrix, one dimensional or multidimensional time series
+### depending on the class of the object to which the data symbol
+### attribute of object evaluates. Essentially a each position (second
+### row) of object, a template corresponding the cluster given by the
+### first row with the jitter specified by the third row is added to
+### an ideal "noise free" trace.
+}
+###########################################################################
+###########################################################################
+###########################################################################
+residuals.eventsMatched <- function #residuals method for eventsMatched object
+### Here the residuals are obtained by subtracting from the raw data
+### from which the object was derived, the ideal prediction.
+(object, ##<< an eventsMatched object.
+ ... ##<< not used but required for compatibility with generic predict method.
+ ) {
+  eval(attr(object,"data")) - predict(object)
+### A vector, matrix, one dimensional or multidimensional time series
+### depending on the class of the object to which the data symbol
+### attribute of object evaluates. Essentially a each position (second
+### row) of object, a template corresponding the cluster given by the
+### first row with the jitter specified by the third row is subtracted from
+### the raw data.
+}
+###########################################################################
+###########################################################################
+###########################################################################
+
