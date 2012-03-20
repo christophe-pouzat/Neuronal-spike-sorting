@@ -2591,4 +2591,35 @@ residuals.eventsMatched <- function #residuals method for eventsMatched object
 ###########################################################################
 ###########################################################################
 ###########################################################################
-
+fuseMatches <- function #Fuse two eventsMatched objects derived from the same data with the same model
+### Given two eventsMatched objects derived from the same data with
+### the same model (set of templates), return a new eventsMatched
+### object with a single occurrence of each event.
+(match1, ##<< an eventsMatched object.
+ match2  ##<< an eventsMatched object.
+ ) {
+  stopifnot("eventsMatched" %in% class(match1))
+  stopifnot("eventsMatched" %in% class(match2))
+  templateList <- attr(match1,"templateList")
+  stopifnot(identical(templateList,attr(match2,"templateList")))
+  p1 <- match1["position",]
+  p2 <- match2["position",]
+  stopifnot(length(p1) >= length(p2))
+  data <- attr(match1,"data")
+  m1 <- unclass(match1)
+  m2 <- unclass(match2)
+  res <- cbind(m1,m2)
+  positions <- c(p1,p2)
+  sIdx <- sort.int(positions,index.return=TRUE)$ix
+  positions <- positions[sIdx]
+  res <- res[,sIdx]
+  attr(res,"call") <- match.call()
+  attr(res,"data") <- attr(evts,"data")
+  attr(res,"templateList") <- templateList
+  class(res) <- c("eventsMatched","matrix")
+  res
+### An events matched object.
+}
+###########################################################################
+###########################################################################
+###########################################################################
