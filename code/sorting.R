@@ -2435,3 +2435,42 @@ matchTemplate <- function #Compare cuts to set of templates
 ### templateList, the value of the argument with that name. The
 ### returned matrix is given an eventsMatched class.
 }
+###########################################################################
+###########################################################################
+###########################################################################
+"[.eventsMatched" <- function #Subsetting method for eventsMatched objects
+### Subsetting method for eventsMatched objects
+(x, ##<< an eventsMatchedObject
+ i, ##<< should be missing only subsetting of columns allowed.
+ j, ##<< index vector for the columns.
+ drop = FALSE ##<< logical.
+ ) {
+  y <- NextMethod("[")
+  if (is.matrix(y) && dim(y)[2] >= 1) {
+    attr(y,"data") <- attr(x,"data")
+    attr(y,"call") <- match.call()
+    attr(y,"templateList") <- attr(x,"templateList")
+    class(y) <- "eventsMatched"
+  }
+  y
+### An eventsMatched object is returned
+}
+###########################################################################
+###########################################################################
+###########################################################################
+print.eventsMatched <- function #print method for eventsMatched objects
+### Print method for eventsMatched objects.
+(x, ##<< an eventsMatchedObject
+ ... ##<< not used but required for compatibility with generic method
+ ) {
+  nc <- dim(x)[2]
+  rn <- rownames(x)
+  attributes(x) <- NULL
+  x <- matrix(x,nc=nc)
+  rownames(x) <- rn
+  print(x)
+### The matrix part of the object is printed.
+}
+###########################################################################
+###########################################################################
+###########################################################################
