@@ -2479,9 +2479,9 @@ onePerClique <- function #Select one event per clique
 ### intervals smaller than a critical length. This function identifies
 ### cliques and return the single event giving the best match.
 (object, ##<< an eventsMatched object.
- criticalLength=45, ##<< an integer, the number of sampling points
-                    ##beyond which events are not considered as
-                    ##members of the same clique.
+ criticalLength=45 ##<< an integer, the number of sampling points
+                   ##beyond which events are not considered as
+                   ##members of the same clique.
 ) {
   stopifnot("eventsMatched" %in% class(object))
   rawData <- eval(attr(object,"data"))
