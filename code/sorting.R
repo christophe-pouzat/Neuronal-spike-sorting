@@ -2389,7 +2389,7 @@ explore.eventsPos <- function ## Explore methods for eventsPos objects
 ###########################################################################
 ###########################################################################
 ###########################################################################
-matchTemplate <- function #Compare cuts to set of templates
+eventsMatched <- function #Compare cuts to set of templates
 ### Given an object of class events and a set of template functions, a
 ### systematic comparison of each event with each template is
 ### performed with jitter correction.
