@@ -2591,7 +2591,7 @@ residuals.eventsMatched <- function #residuals method for eventsMatched object
 ###########################################################################
 ###########################################################################
 ###########################################################################
-fuseMatches <- function #Fuse two eventsMatched objects derived from the same data with the same model
+fuseEventsMatched <- function #Fuse two eventsMatched objects derived from the same data with the same model
 ### Given two eventsMatched objects derived from the same data with
 ### the same model (set of templates), return a new eventsMatched
 ### object with a single occurrence of each event.
