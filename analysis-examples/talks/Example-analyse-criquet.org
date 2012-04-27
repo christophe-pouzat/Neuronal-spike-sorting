@@ -74,6 +74,13 @@
   % }
 #+END_LaTeX
 
+#+BEGIN_SRC R :exports none :session *R*
+  options(OutDec=",")
+#+END_SRC
+
+#+RESULTS:
+: 0
+
 * Introduction
 
 ** Un exemple
@@ -88,7 +95,7 @@ Nous allons illustrer ici sur un exemple concret /et simple/ les différentes é
 - les données ont été filtrées entre 300 Hz et 5 kHz lors de l'acquisition ;
 - les données sont stockées dans les fichiers sous forme de « réels » représentés en double précision ;
 - les fichiers ne contiennent /que les données/ (pas d'en-tête, etc) ;
-- les fichiers ont été comprimés avec =gzip=.
+- les fichiers ont été compressés avec =gzip=.
 
 * Téléchargement et lecture des données dans =R= 
 
@@ -100,14 +107,14 @@ Nous allons tout effectuer dans =R=. Nous commençons par affecter à une variab
     :BEAMER_env: alertblock
     :END:
 #+name: site
-#+BEGIN_SRC R :session *R* :exports code :results verbatim
+#+BEGIN_SRC R :session *R* :exports code :cache yes
   site <- paste("http://www.biomedicale.univ-",
                 "paris5.fr",
                 "/physcerv/C_Pouzat/Data_folder/",
                 sep="")
 #+END_SRC
 
-#+RESULTS: site
+#+RESULTS[68a63a2c930849484dd74bfd8e3dc362bcb87942]: site
 : http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/
 
 J'ai utilisé la commande =paste= pour tout faire loger dans la largeur de l'écran, elle n'est pas indispensable ici.
@@ -121,14 +128,14 @@ Nous créons ensuite un vecteur de chaînes de caractères contenant les quatre 
     :BEAMER_env: alertblock
     :END:
 #+name: lesNoms
-#+BEGIN_SRC R :session *R* :exports code
+#+BEGIN_SRC R :session *R* :exports code :cache yes
   lesNoms <- paste("Locust_",
                    1:4,
                    ".dat.gz",
                    sep="")
 #+END_SRC
 
-#+RESULTS: lesNoms
+#+RESULTS[fc703506087376d67dbbf8903c5bdd6f0a432131]: lesNoms
 | Locust_1.dat.gz |
 | Locust_2.dat.gz |
 | Locust_3.dat.gz |
@@ -184,7 +191,13 @@ Nous affectons à une nouvelle variable le nombre de mesures à lire dans chaque
 : 3e+05
 
 ** Chargement des données (2)
-Nous chargeons les données dans l'espace de travail en nous souvenant qu'elles ont été comprimées avec =gzip= :
+- nous allons devoir lire des données stockées en format binaire ; c'est-à-dire pas sous forme textuelle ce qui implique que si vous ouvrez les fichiers avec votre éditeur de texte préféré, vous ne verrez que des symboles incompréhensibles ;
+- la fonction que nous allons utiliser pour cela est =readBin= (vous aurez accès à la documentation de celle-ci en tapant =?readBin= en ligne de commande) ;
+- comme nos fichiers de données ont été compressés nous devons utiliser une /connexion/ (un pointeur sur un fichier ouvert) et non le nom du fichier à lire comme premier argument de la fonction ;
+- si nous passions le nom d'un fichier comme premier argument, =readBin= l'ouvrirait alors comme un fichier non compressé et nous n'aurions pas les bonnes données à l'arrivée.
+ 
+** Chargement des données (3)
+Nous chargeons les données dans l'espace de travail en nous souvenant qu'elles ont été compressées avec =gzip= :
 *** Lecture des données					       :B_alertblock:
     :PROPERTIES:
     :BEAMER_env: alertblock
@@ -271,7 +284,7 @@ On peut alors utiliser la /méthode/ =plot= sur un objet de classe =mts= (/multi
     :BEAMER_env: alertblock
     :END:
 #+name: plot-lD
-#+BEGIN_SRC R :session *R* :exports code
+#+BEGIN_SRC R 
   plot(lD,axes=FALSE,xlab="",main="",lwd=0.2)
 #+END_SRC
 
@@ -280,12 +293,12 @@ On peut alors utiliser la /méthode/ =plot= sur un objet de classe =mts= (/multi
 #+caption: Les 20 secondes de données sur les 4 sites.
 #+attr_latex: width=0.8\textwidth
 #+name: lD-complet
-#+header: :width 1000 :height 800
+#+header: :width 1000 :height 800 :cache yes :noweb yes
 #+BEGIN_SRC R :session *R* :exports results :results output graphics :file lD-complet.png
-  plot(lD,axes=FALSE,xlab="",main="",lwd=0.2)
+  <<plot-lD>>
 #+END_SRC
 
-#+RESULTS: lD-complet
+#+RESULTS[0e01e179035b5055b411152fa8af4e2f66a3cca8]: lD-complet
 [[file:lD-complet.png]]
 
 ** Visualisation des données (2)
@@ -306,11 +319,11 @@ Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple,
 #+caption: Les 200 premières millisecondes de données sur les 4 sites.
 #+attr_latex: width=0.8\textwidth
 #+name: lD-200ms
-#+header: :width 1000 :height 800 :noweb yes
+#+header: :width 1000 :height 800 :noweb yes :cache yes
 #+BEGIN_SRC R :session *R* :exports results :results output graphics :file lD-200ms.png
   <<plot-window-lD>>
 #+END_SRC
 
-#+RESULTS: lD-200ms
+#+RESULTS[e3dc8f180d42fb332ad485c8b36a5844eb2317c2]: lD-200ms
 [[file:lD-200ms.png]]
 
