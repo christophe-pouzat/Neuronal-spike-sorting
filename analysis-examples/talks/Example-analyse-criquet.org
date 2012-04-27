@@ -1,0 +1,316 @@
+#+TITLE: Un exemple concret d'analyse
+
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  fr
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+#+LaTeX_CLASS: beamer-xetex-fr
+#+BEAMER_FRAME_LEVEL: 2
+#+BEAMER_HEADER_EXTRA: \usetheme{default}\usecolortheme{default}
+#+BEAMER_HEADER_EXTRA: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER_EXTRA: \setbeamercovered{invisible}
+#+BEAMER_HEADER_EXTRA: \author{{\large Christophe Pouzat} \\ \vspace{0.2cm} Mathématiques Appliquées à Paris 5 (MAP5) \\ \vspace{0.2cm} Université Paris-Descartes et CNRS UMR 8145 \\ \vspace{0.2cm} \texttt{christophe.pouzat@parisdescartes.fr} }
+#+BEAMER_HEADER_EXTRA: \date{Jeudi 26 avril 2012}
+#+COLUMNS: %45ITEM %10BEAMER_env(Env) %10BEAMER_envargs(Env Args) %4BEAMER_col(Col) %8BEAMER_extra(Extra)
+#+PROPERTY: BEAMER_col_ALL 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 :ETC
+#+EPRESENT_FRAME_LEVEL: 2
+#+STARTUP: beamer
+
+#+name: setup
+#+begin_src emacs-lisp :results silent :exports none
+  ;; M-: flyspell-generic-check-word-predicate
+    (defadvice org-mode-flyspell-verify
+      (after my-org-mode-flyspell-verify activate)
+      "Don't spell check src blocks."
+      (setq ad-return-value
+            (and ad-return-value
+                 (not (org-in-src-block-p))
+                 (not (member 'org-block-begin-line (text-properties-at (point))))
+                 (not (member 'org-block-end-line (text-properties-at (point)))))))
+  
+  (unless (find "beamer-xetex-fr" org-export-latex-classes :key 'car
+                :test 'equal)
+    (add-to-list 'org-export-latex-classes
+                 '("beamer-xetex-fr"
+                   "\\documentclass[hyperref={xetex, colorlinks=true, urlcolor=blue, plainpages=false, pdfpagelabels, bookmarksnumbered}]{beamer}
+                    \\usepackage{xunicode,fontspec,xltxtra}
+                    \\usepackage[french]{babel}
+                    \\usepackage{graphicx,longtable,url,rotating}
+                    \\definecolor{lightcolor}{gray}{.55}
+                    \\definecolor{shadecolor}{gray}{.95}
+                    \\usepackage{minted}
+                    \\newminted{common-lisp}{fontsize=\\footnotesize}
+                    \\setromanfont[Mapping=text-text]{Liberation Serif}
+                    \\setsansfont[Mapping=text-text]{Liberation Sans}
+                    \\setmonofont[Mapping=text-text]{Liberation Mono}
+                    [NO-DEFAULT-PACKAGES]
+                    [EXTRA]"
+  org-beamer-sectioning)))
+  (add-to-list 'org-export-latex-minted-langs
+  '(R "r"))  
+    (setq org-export-latex-minted-options
+          '(("bgcolor" "shadecolor")
+            ("fontsize" "\\scriptsize")))
+  (setq org-latex-to-pdf-process
+        '("xelatex -shell-escape -interaction nonstopmode -output-directory %o %f"
+          "xelatex -shell-escape -interaction nonstopmode -output-directory %o %f"
+          "xelatex -shell-escape -interaction nonstopmode -output-directory %o %f"))
+#+end_src
+
+#+BEGIN_LaTeX 
+  % \AtBeginSection[]
+  % {
+  %   \begin{frame}
+  %     \frametitle{Sommaire}
+  %     \tableofcontents[currentsection]
+  %   \end{frame}
+  % }
+#+END_LaTeX
+
+* Introduction
+
+** Un exemple
+Nous allons illustrer ici sur un exemple concret /et simple/ les différentes étapes du tri des potentiels d'actions :
+- les données, 20 s d'enregistrement effectué 15 kHz, sont disponibles à l'adresse [[http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data.html]] ;
+- les enregistrements ont été effectués dans le lobe antennaire d'un criquet (/Schistocerca americana/) ;
+- aucune stimulation n'a été appliquée pendant cette portion de l'enregistrement ;
+- ce sont des enregistrements de tetrode et les données enregistrées sur les quatre sites se trouvent dans les quatre fichiers : =Locust_1.dat.gz=, =Locust_2.dat.gz=, =Locust_3.dat.gz=, =Locust_4.dat.gz=.  
+
+** Informations supplémentaires sur les données
+
+- les données ont été filtrées entre 300 Hz et 5 kHz lors de l'acquisition ;
+- les données sont stockées dans les fichiers sous forme de « réels » représentés en double précision ;
+- les fichiers ne contiennent /que les données/ (pas d'en-tête, etc) ;
+- les fichiers ont été comprimés avec =gzip=.
+
+* Téléchargement et lecture des données dans =R= 
+
+** Téléchargement des données (1)
+
+Nous allons tout effectuer dans =R=. Nous commençons par affecter à une variable, l'adresse URL du site où se trouve les données :   
+*** =site= 						       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: site
+#+BEGIN_SRC R :session *R* :exports code :results verbatim
+  site <- paste("http://www.biomedicale.univ-",
+                "paris5.fr",
+                "/physcerv/C_Pouzat/Data_folder/",
+                sep="")
+#+END_SRC
+
+#+RESULTS: site
+: http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/
+
+J'ai utilisé la commande =paste= pour tout faire loger dans la largeur de l'écran, elle n'est pas indispensable ici.
+
+** Téléchargement des données (2)
+
+Nous créons ensuite un vecteur de chaînes de caractères contenant les quatre noms de fichiers de données :
+
+*** =lesNoms=						       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: lesNoms
+#+BEGIN_SRC R :session *R* :exports code
+  lesNoms <- paste("Locust_",
+                   1:4,
+                   ".dat.gz",
+                   sep="")
+#+END_SRC
+
+#+RESULTS: lesNoms
+| Locust_1.dat.gz |
+| Locust_2.dat.gz |
+| Locust_3.dat.gz |
+| Locust_4.dat.gz |
+
+** Téléchargement des données (3)
+
+Nous « terminons le travail » avec la commande =download.file= et la commande =sapply= :
+*** Téléchargement					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: telechargement
+#+BEGIN_SRC R :session *R* :exports code
+  sapply(1:4,
+         function(i) {
+           complet <- paste(site,
+                            lesNoms[i],
+                            sep="")
+           download.file(complet,
+                         lesNoms[i],
+                         mode="wb")
+         })
+#+END_SRC
+
+#+RESULTS: telechargement
+| 0 |
+| 0 |
+| 0 |
+| 0 |
+
+** Téléchargement des données (4)
+Vous pouvez alors vérifier que les fichiers se trouvent bien sur votre disque avec :
+*** Vérification					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+BEGIN_SRC R :session *R* :exports code :eval never
+  list.files(pattern="*.dat.gz")
+#+END_SRC
+
+** Chargement des données (1)
+Nous affectons à une nouvelle variable le nombre de mesures à lire dans chaque fichier (ce n'est pas indispensable, mais c'est plus propre). Nous nous souvenons que nous avons 20 s de données échantillonées à 15 kHz soit 20 x 15^3 mesures à lire par fichier :
+*** nbMesures						       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+BEGIN_SRC R :session *R* :exports code
+  nbMesures <- 20*15e3
+#+END_SRC
+
+#+RESULTS:
+: 3e+05
+
+** Chargement des données (2)
+Nous chargeons les données dans l'espace de travail en nous souvenant qu'elles ont été comprimées avec =gzip= :
+*** Lecture des données					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+BEGIN_SRC R :session *R* :exports code
+  lD <- sapply(lesNoms,
+               function(n) {
+                 mC <- gzfile(n,open="rb")
+                 x <- readBin(mC,what="double",
+                              n=nbMesures)
+                 close(mC)
+                 x})
+  colnames(lD) <- paste("site",1:4)
+#+END_SRC
+
+#+RESULTS:
+| site 1 |
+| site 2 |
+| site 3 |
+| site 4 |
+
+** Chargement des données (3)
+
+À ce stade, si tout s'est bien passé, l'objet =lD= doit être une matrice avec =nbMesures= lignes et autant de colonnes qu'il y a d'éléments dans =lesNoms=, c'est-à-dire 4 ; ce que nous vérifions avec :
+*** Vérification					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: dimension-de-lD
+#+BEGIN_SRC R :session *R* :exports both :results verbatim
+  dim(lD)  
+#+END_SRC
+
+*** Résultat							    :B_block:
+    :PROPERTIES:
+    :BEAMER_env: block
+    :END:
+#+RESULTS: dimension-de-lD
+: 300000
+: 4
+
+* Analyse préliminaire
+
+
+** Un conseil
+Lorsque que vous analysez des données que vous n'avez pas collectées vous mêmes, une bonne chose à faire est de générer un « [[http://en.wikipedia.org/wiki/Five-number_summary][résumé à cinq nombres]] » :
+*** Résumé de =lD=					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: summary-lD
+#+BEGIN_SRC R :session *R* :exports both :colnames yes
+  summary(lD,digits=2)
+#+END_SRC
+
+*** Résultat							    :B_block:
+    :PROPERTIES:
+    :BEAMER_env: block
+    :END:
+#+RESULTS: summary-lD
+| site 1         | site 2         | site 3         | site 4        |
+|----------------+----------------+----------------+---------------|
+| Min.   :-9,074 | Min.   :-8,229 | Min.   :-6,890 | Min.   :-7,35 |
+| 1st Qu.:-0,371 | 1st Qu.:-0,450 | 1st Qu.:-0,530 | 1st Qu.:-0,49 |
+| Median :-0,029 | Median :-0,036 | Median :-0,042 | Median :-0,04 |
+| Mean   : 0,000 | Mean   : 0,000 | Mean   : 0,000 | Mean   : 0,00 |
+| 3rd Qu.: 0,326 | 3rd Qu.: 0,396 | 3rd Qu.: 0,469 | 3rd Qu.: 0,43 |
+| Max.   :10,626 | Max.   :11,742 | Max.   : 9,849 | Max.   :10,56 |
+
+** Conversion des données en suite chronologique
+
+Afin de profiter des fonctionnalités offertes par =R= pour construire des graphes de suites chronologiques, nous allons convertir notre matrice de données =lD= en une suite chronologique multivariée avec la fonction =ts= :
+*** Utilisation de =ts=					       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+BEGIN_SRC R :session *R* :exports code :results output silent
+  lD <- ts(lD,start=0,freq=15e3)
+#+END_SRC 
+
+On peut alors utiliser la /méthode/ =plot= sur un objet de classe =mts= (/multivariate time series/) avec :
+*** Utilisation de =plot.ts=				       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: plot-lD
+#+BEGIN_SRC R :session *R* :exports code
+  plot(lD,axes=FALSE,xlab="",main="",lwd=0.2)
+#+END_SRC
+
+** Visualisation des données (1)
+
+#+caption: Les 20 secondes de données sur les 4 sites.
+#+attr_latex: width=0.8\textwidth
+#+name: lD-complet
+#+header: :width 1000 :height 800
+#+BEGIN_SRC R :session *R* :exports results :results output graphics :file lD-complet.png
+  plot(lD,axes=FALSE,xlab="",main="",lwd=0.2)
+#+END_SRC
+
+#+RESULTS: lD-complet
+[[file:lD-complet.png]]
+
+** Visualisation des données (2)
+Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple, les 200 premières millisecondede données :
+
+*** Utilisation de =window=				       :B_alertblock:
+    :PROPERTIES:
+    :BEAMER_env: alertblock
+    :END:
+#+name: plot-window-lD
+#+BEGIN_SRC R 
+  plot(window(lD,0,0.2),
+       xlab="Temps (s)",
+       main="")
+#+END_SRC
+
+** Visualisation des données (3)
+#+caption: Les 200 premières millisecondes de données sur les 4 sites.
+#+attr_latex: width=0.8\textwidth
+#+name: lD-200ms
+#+header: :width 1000 :height 800 :noweb yes
+#+BEGIN_SRC R :session *R* :exports results :results output graphics :file lD-200ms.png
+  <<plot-window-lD>>
+#+END_SRC
+
+#+RESULTS: lD-200ms
+[[file:lD-200ms.png]]
+
