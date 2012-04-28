@@ -23,6 +23,8 @@
 #+EPRESENT_FRAME_LEVEL: 2
 #+STARTUP: beamer
 
+* Définitions de variables et de fonctions :noexport: 
+  
 #+name: setup
 #+begin_src emacs-lisp :results silent :exports none
   ;; M-: flyspell-generic-check-word-predicate
@@ -81,7 +83,19 @@
 #+RESULTS:
 : 0
 
-* Introduction
+#+name: site
+: http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/
+
+#+name: lesNoms
+#+BEGIN_SRC R :exports none :cache yes
+  paste("Locust_",1:4,".dat.gz",sep="")
+#+END_SRC
+
+#+name: nbMesures
+: 3e+05
+
+
+* Introduction :export:
 
 ** Un exemple
 Nous allons illustrer ici sur un exemple concret /et simple/ les différentes étapes du tri des potentiels d'actions :
@@ -96,8 +110,8 @@ Nous allons illustrer ici sur un exemple concret /et simple/ les différentes é
 - les données sont stockées dans les fichiers sous forme de « réels » représentés en double précision ;
 - les fichiers ne contiennent /que les données/ (pas d'en-tête, etc) ;
 - les fichiers ont été compressés avec =gzip=.
-
-* Téléchargement et lecture des données dans =R= 
+ 
+* Téléchargement et lecture des données dans =R= :export:
 
 ** Téléchargement des données (1)
 
@@ -106,18 +120,12 @@ Nous allons tout effectuer dans =R=. Nous commençons par affecter à une variab
     :PROPERTIES:
     :BEAMER_env: alertblock
     :END:
-#+name: site
-#+BEGIN_SRC R :session *R* :exports code :cache yes
-  site <- paste("http://www.biomedicale.univ-",
-                "paris5.fr",
-                "/physcerv/C_Pouzat/Data_folder/",
-                sep="")
+#+LaTeX: \tiny
+#+name: affection-site
+#+BEGIN_SRC R :exports code :cache yes :noweb yes
+  site <- "<<site()>>"
 #+END_SRC
-
-#+RESULTS[68a63a2c930849484dd74bfd8e3dc362bcb87942]: site
-: http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/
-
-J'ai utilisé la commande =paste= pour tout faire loger dans la largeur de l'écran, elle n'est pas indispensable ici.
+#+LaTeX: \normalsize
 
 ** Téléchargement des données (2)
 
@@ -127,15 +135,13 @@ Nous créons ensuite un vecteur de chaînes de caractères contenant les quatre 
     :PROPERTIES:
     :BEAMER_env: alertblock
     :END:
-#+name: lesNoms
-#+BEGIN_SRC R :session *R* :exports code :cache yes
-  lesNoms <- paste("Locust_",
-                   1:4,
-                   ".dat.gz",
-                   sep="")
+
+#+name: affecte-lesNoms
+#+BEGIN_SRC R :exports code :noweb yes :session *R*
+  lesNoms <- <<lesNoms>>
 #+END_SRC
 
-#+RESULTS[fc703506087376d67dbbf8903c5bdd6f0a432131]: lesNoms
+#+RESULTS: affecte-lesNoms
 | Locust_1.dat.gz |
 | Locust_2.dat.gz |
 | Locust_3.dat.gz |
@@ -149,7 +155,7 @@ Nous « terminons le travail » avec la commande =download.file= et la commande 
     :BEAMER_env: alertblock
     :END:
 #+name: telechargement
-#+BEGIN_SRC R :session *R* :exports code
+#+BEGIN_SRC R :session *R* :exports code :var site=site 
   sapply(1:4,
          function(i) {
            complet <- paste(site,
@@ -183,12 +189,11 @@ Nous affectons à une nouvelle variable le nombre de mesures à lire dans chaque
     :PROPERTIES:
     :BEAMER_env: alertblock
     :END:
-#+BEGIN_SRC R :session *R* :exports code
-  nbMesures <- 20*15e3
+#+name: affectation-nbMesures
+#+BEGIN_SRC R :session *R* :exports code :cache yes :noweb yes
+  nbMesures <- <<nbMesures()>>
 #+END_SRC
 
-#+RESULTS:
-: 3e+05
 
 ** Chargement des données (2)
 - nous allons devoir lire des données stockées en format binaire ; c'est-à-dire pas sous forme textuelle ce qui implique que si vous ouvrez les fichiers avec votre éditeur de texte préféré, vous ne verrez que des symboles incompréhensibles ;
@@ -197,29 +202,35 @@ Nous affectons à une nouvelle variable le nombre de mesures à lire dans chaque
 - si nous passions le nom d'un fichier comme premier argument, =readBin= l'ouvrirait alors comme un fichier non compressé et nous n'aurions pas les bonnes données à l'arrivée.
  
 ** Chargement des données (3)
+- l'ouverture d'un fichier compressé ce fait avec la commande =gzfile= ;
+- celle-ci retourne un objet qui peut être vu comme un pointeur sur le premier élément du fichier ouvert ;
+- nous ne devons pas oublier de *refermer* le fichier lorsque nous avons fini de travailler avec.
+
+** Chargement des données (4)
 Nous chargeons les données dans l'espace de travail en nous souvenant qu'elles ont été compressées avec =gzip= :
 *** Lecture des données					       :B_alertblock:
     :PROPERTIES:
     :BEAMER_env: alertblock
     :END:
-#+BEGIN_SRC R :session *R* :exports code
+#+name: lD
+#+BEGIN_SRC R :session *R* :exports code :noweb yes
   lD <- sapply(lesNoms,
                function(n) {
                  mC <- gzfile(n,open="rb")
                  x <- readBin(mC,what="double",
-                              n=nbMesures)
+                              n=<<nbMesures()>>)
                  close(mC)
                  x})
   colnames(lD) <- paste("site",1:4)
 #+END_SRC
 
-#+RESULTS:
+#+RESULTS: lD
 | site 1 |
 | site 2 |
 | site 3 |
 | site 4 |
 
-** Chargement des données (3)
+** Chargement des données (5)
 
 À ce stade, si tout s'est bien passé, l'objet =lD= doit être une matrice avec =nbMesures= lignes et autant de colonnes qu'il y a d'éléments dans =lesNoms=, c'est-à-dire 4 ; ce que nous vérifions avec :
 *** Vérification					       :B_alertblock:
@@ -239,7 +250,7 @@ Nous chargeons les données dans l'espace de travail en nous souvenant qu'elles 
 : 300000
 : 4
 
-* Analyse préliminaire
+* Analyse préliminaire :export:
 
 
 ** Un conseil
@@ -302,7 +313,7 @@ On peut alors utiliser la /méthode/ =plot= sur un objet de classe =mts= (/multi
 [[file:lD-complet.png]]
 
 ** Visualisation des données (2)
-Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple, les 200 premières millisecondede données :
+Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple, les 200 premières millisecondes de données :
 
 *** Utilisation de =window=				       :B_alertblock:
     :PROPERTIES:
