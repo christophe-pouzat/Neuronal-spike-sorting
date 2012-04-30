@@ -4,7 +4,7 @@
 #+KEYWORDS:
 #+LANGUAGE:  fr
 #+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
-#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:nil
 #+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
 #+EXPORT_SELECT_TAGS: export
 #+EXPORT_EXCLUDE_TAGS: noexport
@@ -85,6 +85,9 @@
 
 #+name: site
 : http://www.biomedicale.univ-paris5.fr/physcerv/C_Pouzat/Data_folder/
+
+#+name: adresse-github
+: https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R
 
 #+name: lesNoms
 #+BEGIN_SRC R :exports none :cache yes
@@ -298,11 +301,12 @@ On peut alors utiliser la /méthode/ =plot= sur un objet de classe =mts= (/multi
 #+BEGIN_SRC R 
   plot(lD,axes=FALSE,xlab="",main="",lwd=0.2)
 #+END_SRC
-
+    
 ** Visualisation des données (1)
 
 #+caption: Les 20 secondes de données sur les 4 sites.
 #+attr_latex: width=0.8\textwidth
+#+label: fig:lD-complet
 #+name: lD-complet
 #+header: :width 1000 :height 800 :cache yes :noweb yes
 #+BEGIN_SRC R :session *R* :exports results :results output graphics :file lD-complet.png
@@ -337,4 +341,139 @@ Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple,
 
 #+RESULTS[e3dc8f180d42fb332ad485c8b36a5844eb2317c2]: lD-200ms
 [[file:lD-200ms.png]]
+
+** Visualisation des données (4)
+- on peut se faire une bonne idée des propriétés des données avec la combinaison des fonctions =plot= et =window= ;
+- il est néanmoins un peu pénible et inefficace de visualiser /une bonne partie des données/ avec une résolution permettant de voir les potentiels d'action individuels, comme sur la dernière figure, de cette façon ;
+- j'ai donc créé ma propre fonction / méthode, =explore=, permettant de faire cela ;
+- cette fonction appelle =plot= et =window= mais elle est interactive et permet de passer de la visualisation du segment [t,t+δ] au segment suivant [t+δ,t+2δ] en tapant simplement =return=.
+** Téléchargement du fichier de fonctions (1)
+- mes fonctions ne sont pas encore organisées sous forme de paquet =R= ;
+- la dernière version de ce fichier peut être téléchargée depuis le dépôt [[https://github.com/][github]] dans le projet =Neuronal-spike-sorting= ;
+- mais plutôt que d'effectuer le téléchargement « à  la main », nous allons le faire avec =R= ;
+- nous affectons donc à la variable =github= l'=URL= du fichier de fonctions :
+#+LaTeX: \tiny
+#+name: affection-github
+#+BEGIN_SRC R :exports code :cache yes :noweb yes :session *R*
+  github <- "<<adresse-github()>>"
+#+END_SRC
+
+#+RESULTS[12672ab8c069a85ee3cfeda886c1e93202370941]: affection-github
+: https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R
+
+#+LaTeX: \normalsize
+
+Il manque un « .R » à la fin de l'adresse affichée ci-dessus (c'est hors cadre).
+
+** Téléchargement du fichier de fonctions (2)
+- nous allons télécharger le fichier de fonctions dans un fichier que nous nommerons =sorting.R= ;
+- nous allons employer la fonction =download.file=, comme pour notre téléchargement de données ;
+- il y a ici une petite subtilité due au fait que nous employons une adresse sécurisée ([[http://fr.wikipedia.org/wiki/HTTPS][https]]) ;
+- nous allons devoir spécifier « =method= = "wget" » pour effectuer notre tâche ;
+- comme le fichier est un fichier texte (contrairement au fichier binaire précédent) nous pouvons garder la valeur par défaut de l'argument =mode= :
+#+name: telechargment-de-sorting.R
+#+BEGIN_SRC R :session *R* :exports code
+  download.file(github,"sorting.R",method="wget")
+#+END_SRC
+
+#+RESULTS: telechargment-de-sorting.R
+: 0
+
+** Chargement du fichier de fonctions dans l'espace de travail et utilisation de =explore=
+Nous chargeons les fonctions définies dans =sorting.R= de façon tout à fait banale avec la commande =source= :
+#+name: chargement-sorting.R
+#+BEGIN_SRC R :session *R* :exports code
+  source("sorting.R")
+#+END_SRC
+
+#+RESULTS: chargement-sorting.R
+
+Nous pouvons maintenant appeler la fonction =explore= :
+#+name: explore-lD
+#+BEGIN_SRC R :session *R* exports code :eval never
+  explore(lD,col=c("black","grey70"))
+#+END_SRC
+- j'ai changé ici les couleurs utilisées par défaut ; 
+- lorsque la fonction est lancée, un graphe apparaît et =R= vous fait des propositions en ligne de commande ;
+- il suffit de faire un choix puis de taper =return=.  
+
+
+* Normalisation des données et détection des événements :export:
+
+** Normalisation des événements (1)
+- notre première figure (\ref{fig:lD-complet}) suggère que le rapport signal sur bruit n'est pas homogène sur l'ensemble des quatre sites ;
+- il semble être moins bon sur le quatrième ;
+- nous allons détecter les événements sur chacun des sites et nous ne voulons pas qu'un site contribue plus ou moins à la détection à cause d'une différence de rapport signal sur bruit ;
+- en somme, nous souhaitons normaliser les données de chaque site d'enregistrement de sorte que l'écart type du bruit soit le même partout ; 
+- le problème est que si nous *estimons* l'écart type du bruit « directement » en ignorant les événements, la présence de ces derniers va biaiser notre estimation ;
+- mais nous ne pouvons pas retirer les événements sans les avoir détecter ;
+- nous souhaitons donc appliquer une méthode d'estimation de l'écart type qui ne soit pas trop affectée par la présence des événements.
+
+** Normalisation des événements (2)
+- nous souhaitons donc une méthode [[http://en.wikipedia.org/wiki/Robust_statistics][robuste]] d'estimation de l'écart type ;
+- la médiane de la valeur absolue des écarts à la médiane ([[http://en.wikipedia.org/wiki/Median_absolute_deviation][Median absolute deviation]]), =MAD= = médiane(|X_i - médiane(X_j)|), fournit ce type d'estimateur : $\hat{\sigma} \approx 1.486 \, \mathrm{MAD}$ ;
+- la fonction =mad= de =R= renvoie la valeur cherchée ;
+- la =MAD= de chacun des quatre sites est donc simplement obtenue avec :
+#+name: lD-MAD
+#+BEGIN_SRC R :session *R* :exports both :cache yes
+  lD.mad <- apply(lD,2,mad)
+  round(lD.mad,digits=2)
+#+END_SRC  
+
+#+RESULTS[2c42f7990852031a417da1936c50a294459d57f0]: lD-MAD
+| 0.52 |
+| 0.63 |
+| 0.74 |
+| 0.68 |
+
+** Normalisation des événements (3)
+
+- nous allons normaliser chaque colonne en la divisant par sa =MAD= ;
+- nous allons faire cela de façon « compacte », sans écrire de boucle en utilisant les propriétés de division d'une matrice par un vecteur dans =R= – attention, nous parlons ici de propriétés propres à =R=, pas de propriétés mathématiques ;
+- si =M= est une matrice et =V= est un vecteur alors pour calculer =M / V=, =R= « convertit » d'abord la matrice en vecteur *en raboutant les colonnes*, les éléments « du vecteur =M= » ou ceux de =V= sont ensuite recyclés de sorte que les deux vecteurs aient la même longueur (le même nombre d'éléments) puis la division est effectuée élément par élément avant de reconvertir le résultat en une matrice ayant les mêmes dimensions que la matrice de départ =M=..
+
+** Normalisation des événements (4)
+
+- comme la conversion de la matrice est effectuée en raboutant les colonnes, nous devons travailler avec la transposée de =lD= pour obtenir ce que nous voulons (prenez une petite minute pour y réfléchir) ;
+- lorsqu'un objet de classe suite chronologique multivariée est transposé, la classe =mts= est perdue et un objet de classe =matrix= en résulte ;
+- nous utilisons finalement les deux instructions suivantes :
+#+name: normalisation-lD
+#+BEGIN_SRC R :session *R* :exports code :results output silent
+  lD <- t(t(lD)/lD.mad)
+  lD <- ts(lD,start=0,freq=15e3)
+#+END_SRC
+
+** Normalisation des événements (5)
+
+Nous allons comparer au moyen d'un [[http://fr.wikipedia.org/wiki/Diagramme_Quantile-Quantile][diagramme Quantile-Quantile]] la normalisation basée sur la =MAD= et celle basée sur l'estimateur classique de l'écart type.
+#+LaTeX: \scriptsize
+#+name: comparaison-normalisation
+#+BEGIN_SRC R
+  gogoQ <- qnorm(ppoints(3e5))
+  plot(c(-5,5),c(-5,5),type="n",
+       xlab="Quantiles théoriques",
+       ylab="Quantiles empiriques")
+  abline(v=c(-1,1)*1.25,lty=3)
+  abline(a=0,b=1)
+  colV <- c("red","grey50","blue","orange")
+  invisible(sapply(1:4,
+                   function(i) {
+                     x <- lD[,i]
+                     lines(gogoQ,sort(x),col=colV[i],lwd=2)
+                     lines(gogoQ,sort(x/sd(x)),col=colV[i],lwd=2,lty=2)}))
+#+END_SRC
+#+LaTeX: \normalsize
+
+** Normalisation des événements (6)
+#+caption: Diagrammes Quantiles-Quantiles de comparaison de la normalisation basée sur la =MAD= (lignes continues) et de celle basée sur l'écart type (lignes brisées) pour chacun des quatre sites (1 en rouge, 2 en gris, 3 en bleu, 4 en orange). Les quantiles théoriques sont ceux d'une loi normale centrée réduite. Les lignes verticales pointillées coupent l'axe des x en -1,25 et +1,25.
+#+attr_latex: width=0.8\textwidth
+#+name: fig-comparaison-normalisation
+#+header: :width 800 :height 800 :cache yes :noweb yes
+#+BEGIN_SRC R :session *R* :exports results :results output graphics :file fig-comparaison-normalisation.png
+  par(cex=2)
+  <<comparaison-normalisation>>
+#+END_SRC
+
+#+RESULTS[d8a32cf466c22109a1c03742fadf6106e76a1ebb]: fig-comparaison-normalisation
+[[file:fig-comparaison-normalisation.png]]
 
