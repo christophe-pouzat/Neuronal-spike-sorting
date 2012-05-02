@@ -28,14 +28,14 @@
 #+name: setup
 #+begin_src emacs-lisp :results silent :exports none
   ;; M-: flyspell-generic-check-word-predicate
-    (defadvice org-mode-flyspell-verify
-      (after my-org-mode-flyspell-verify activate)
-      "Don't spell check src blocks."
-      (setq ad-return-value
-            (and ad-return-value
-                 (not (org-in-src-block-p))
-                 (not (member 'org-block-begin-line (text-properties-at (point))))
-                 (not (member 'org-block-end-line (text-properties-at (point)))))))
+  (defadvice org-mode-flyspell-verify
+    (after my-org-mode-flyspell-verify activate)
+    "Don't spell check src blocks."
+    (setq ad-return-value
+          (and ad-return-value
+               (not (org-in-src-block-p))
+               (not (member 'org-block-begin-line (text-properties-at (point))))
+               (not (member 'org-block-end-line (text-properties-at (point)))))))
   
   (unless (find "beamer-xetex-fr" org-export-latex-classes :key 'car
                 :test 'equal)
@@ -452,7 +452,8 @@ Nous allons comparer au moyen d'un [[http://fr.wikipedia.org/wiki/Diagramme_Quan
   gogoQ <- qnorm(ppoints(3e5))
   plot(c(-5,5),c(-5,5),type="n",
        xlab="Quantiles théoriques",
-       ylab="Quantiles empiriques")
+       ylab="Quantiles empiriques",
+       asp=1)
   abline(v=c(-1,1)*1.25,lty=3)
   abline(a=0,b=1)
   colV <- c("red","grey50","blue","orange")
@@ -468,12 +469,124 @@ Nous allons comparer au moyen d'un [[http://fr.wikipedia.org/wiki/Diagramme_Quan
 #+caption: Diagrammes Quantiles-Quantiles de comparaison de la normalisation basée sur la =MAD= (lignes continues) et de celle basée sur l'écart type (lignes brisées) pour chacun des quatre sites (1 en rouge, 2 en gris, 3 en bleu, 4 en orange). Les quantiles théoriques sont ceux d'une loi normale centrée réduite. Les lignes verticales pointillées coupent l'axe des x en -1,25 et +1,25.
 #+attr_latex: width=0.8\textwidth
 #+name: fig-comparaison-normalisation
-#+header: :width 800 :height 800 :cache yes :noweb yes
+#+header: :width 1000 :height 800 :cache yes :noweb yes
 #+BEGIN_SRC R :session *R* :exports results :results output graphics :file fig-comparaison-normalisation.png
   par(cex=2)
   <<comparaison-normalisation>>
 #+END_SRC
 
-#+RESULTS[d8a32cf466c22109a1c03742fadf6106e76a1ebb]: fig-comparaison-normalisation
+#+RESULTS[70c8a8570667ac3aa741023fb75d297de6f833fc]: fig-comparaison-normalisation
 [[file:fig-comparaison-normalisation.png]]
 
+** Détection des événements (1)
+Nous allons utiliser une méthode plutôt simple pour détecter nos événements – des maxima locaux au-dessus d'un seuil :
+- comme nous cherchons des maxima, nous cherchons des endroits où la dérivée première s'annule ; dit autrement, nous cherchons des endroits où la trace est localement « plate » ;
+- nous nous attendons donc à ce que le bruit à haute fréquence – celui dont la valeur change significativement sur la durée caractéristique du pic d'un événement – ait une influence sur notre détection ; dit autrement, le bruit à haute fréquence devrait nous faire détecter un pic apparent un peu avant ou un peu après le vrai pic ;
+- pour atténuer cet effet, nous allons « filtrer »nos données , au sens du [[http://fr.wikipedia.org/wiki/Traitement\_num\%C3\%A9rique\_du\_signal][traitement numérique du signal]], en remplaçant chaque amplitude mesurée par la moyenne d'elle même et de quelques une de ses plus proches voisines.
+** Détection des événements (2)
+Le filtrage que nous souhaitons mettre en œuvre, ainsi que d'autres plus sophistiqués, est simplement effectué avec la fonction =filter= de =R= :
+#+name: filtre-lD
+#+BEGIN_SRC R :session *R* :exports code :results output silent
+  lDf <- filter(lD,rep(1,3)/3)
+#+END_SRC 
+Nous avons ici remplacé chaque amplitude par la moyenne d'elle-même et de ses deux plus proches voisines :
+- mathématiquement notre filtre est une fonction définie sur l'ensemble des entiers, nulle partout sauf en -1, 0 et 1 où elle prend la valeur 1/3, le filtrage est un produit de convolution ;
+- le filtrage est numériquement effectué par transformation de Fourier des données et du filtre, multiplication des transformées de Fourier et transformation inverse ;  
+- il y a bien d'autres types de filtres pour les suites chronologiques, celui que nous avons employé donne de bons résultats en pratique sur le type de données qui nous occupe.
+** Détection des événements (3)
+Si vous voulez vous faire une idée de l'effet de la « longueur du filtre » – le nombre d'amplitudes voisines moyennées – vous pouvez générer deux autres versions filtrées des données en utilisant par exemple les 10 et 20 plus proche voisines, puis examiner ce que cela donne sur le premier site d'enregistrement. C'est ce que font les commandes suivantes :
+#+name: effet-longueur-du-filtre
+#+BEGIN_SRC R :exports code :eval never
+  lDf11 <- filter(lD,rep(1,11)/11)
+  lDf21 <- filter(lD,rep(1,21)/21)
+  explore(cbind(lD[,1],lDf[,1],lDf11[,1],lDf21[,1]),
+          col=c("black","grey70"))                
+#+END_SRC
+
+** Détection des événements (4)
+Comme nous avons filtré nos trace, nous avons modifié les propriétés du bruit (c'était le but) d'une façon potentiellement dépendante du site d'enregistrement, il est donc plus sûr de renormaliser chaque trace en la divisant par sa =MAD= :
+#+name: normalise-lDf 
+#+BEGIN_SRC R :session *R* :exports code :results output silent
+  lDf.mad <- apply(lDf,2,mad,na.rm=TRUE)
+  lDf <- t(t(lDf)/lDf.mad)
+#+END_SRC
+Nous « rectifions » ensuite chaque trace en forçant toutes les amplitudes inférieures à un seuil de détection à zéro :
+#+name: rectification-lDf
+#+BEGIN_SRC R :session *R* :exports code :results output silent
+  thrs <- c(4,4,4,4)
+  bellow.thrs <- t(t(lDf) < thrs)
+  lDfr <- lDf
+  lDfr[bellow.thrs] <- 0
+#+END_SRC
+Ici nous employons le même seuil, quatre fois la =MAD=, sur chaque site.
+
+** Détection des événements (5)
+Nous pouvons facilement construire une figure illustrant ce que nous venons de faire sur le premier site :
+#+name: plot-illustration-rectification
+#+BEGIN_SRC R
+  plot(window(lD[,1],0,0.2),ylab="",xlab="Temps (s)")
+  abline(h=4,col=4,lty=2,lwd=2)
+  lines(window(ts(lDfr[,1],start=0,freq=15e3),0,0.2),
+        col=2)
+#+END_SRC 
+
+** Détection des événements (6)
+#+caption: Les 200 premières millisecondes sur le premier site (noire, données brutes non filtrées) et la version rectifiée (rouge) où toutes les amplitudes inférieures à 4 fois la =MAD= (ligne horizontale en tirets bleus) ont été forcées à 0.
+#+label: fig-illustration-rectification
+#+attr_latex: width=0.7\textwidth
+#+name: fig-illustration-rectification
+#+header: :width 1000 :height 800 :noweb yes :cache yes
+#+BEGIN_SRC R :session *R* :exports results :results output graphics :file fig-illustration-rectification.png
+  par(cex=2)
+  <<plot-illustration-rectification>>
+#+END_SRC 
+
+#+RESULTS[cfb597a6c65f1f70f2482f7dd6590159e8a28d81]: fig-illustration-rectification
+[[file:fig-illustration-rectification.png]]
+
+** Détection des événements (7)
+Nous allons effectuer notre détection d'événement d'une façon « un peu simpliste » mais que l'expérience montre être efficace :
+- pour détecter sur chacun des 4 sites « à la fois », nous allons former, à chaque instant, la somme des 4 traces filtrées, normalisées et rectifiées ; c.-à-d. la somme des 4 traces rouges – comme celle montrée sur la figure précédente (\ref{fig-illustration-rectification}) ;
+- la commande qui effectue cette somme est =apply(lDfr,1,sum)= dans le code ci-dessous ;
+- une fois cette somme formée, nous allons chercher des maxima locaux sur une fenêtre de 1 ms (15 points d'échantillonage) ;
+- j'ai adapté une fonction =peaks= qui fait cela :
+#+name: detection-des-PAs
+#+BEGIN_SRC R :session *R* :exports code 
+  posPA <- peaks(apply(lDfr,1,sum),15)
+#+END_SRC
+
+#+RESULTS: detection-des-PAs
+** Détection des événements (8)
+- le résultat de notre détection est stocké dans un objet, =posPA=, de classe =evtsPos= ;
+- l'objet est essentiellement un vecteur d'indices – les points d'échantillonage auxquels des événements ont été détectés ;
+- des informations supplémentaires, essentiellement sur le « contexte » dans lequel l'objet a été créé, sont également stockées dans celui-ci ;
+- la méthode =print= appelée sur l'objet renvoie une courte description textuelle de celui-ci :
+#+name: print-posPA
+#+BEGIN_SRC R :session *R* :exports both :results output
+  posPA
+#+END_SRC 
+#+LaTeX: \tiny
+#+RESULTS: print-posPA
+: 
+: eventsPos object with indexes of 1769 events. 
+:   Mean inter event interval: 169,45 sampling points, corresponding SD: 150,2 sampling points 
+:   Smallest and largest inter event intervals: 9 and 1453 sampling points.
+#+LaTeX: \normalsize
+** Détection des événements (9)
+Une fois la détection effectuée avec une méthode qui comporte autant de paramètres ajustés « à la main » :
+- choix du type de filtre et de la longueur de celui-ci ;
+- choix du seuil de détection ;
+- choix de la longueur de la plage de détection ;
+il faut *absolument* comparer données brutes et détection, ce que nous faisons ici de façon interactive avec une méthode =explore= adaptée à une combinaison d'objet de classe =eventsPos= pour le premier argument et =ts= pour le deuxième :
+#+name: explore-pour-detection
+#+BEGIN_SRC R :eval never
+  explore(posPA, lD, col = c("black", "grey50"))
+#+END_SRC
+** Détection des événements (10)
+#+LaTeX: \small
+- il est clair lors de la confrontation de la détection aux données brutes que certains événements de petites amplitudes ne sont pas détectés ;
+- la structure neuronale générant les données est telle que plus on s'éloigne des sites d'enregistrement, plus nombreuses sont les sources de signaux (les neurones) ;
+- mais plus on s'éloigne, plus petites sont les amplitudes des signaux que génèrent les neurones sur les sites d'enregistrement ;
+- nous nous trouvons ainsi vite dans une situation où de « nombreux » neurones distants nous génèrent de petits signaux *que nous ne pouvons plus distinguer / classer du fait du faible rapport signal sur bruit* ;
+- c'est ici l'expérience des données et de la méthode d'analyse qui permet d'arriver à un choix « satisfaisant » de paramètres de détection.   
+#+LaTeX: \normalsize
