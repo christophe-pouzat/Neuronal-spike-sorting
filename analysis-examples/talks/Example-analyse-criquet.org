@@ -1,4 +1,4 @@
-#+TITLE: Un exemple concret d'analyse
+#+TITLE: Un exemple concret d'analyse I
 
 #+DESCRIPTION:
 #+KEYWORDS:
@@ -342,64 +342,7 @@ Avec la fonction =window= nous pouvons facilement « zoomer » sur, par exemple,
 #+RESULTS[e3dc8f180d42fb332ad485c8b36a5844eb2317c2]: lD-200ms
 [[file:lD-200ms.png]]
 
-** Visualisation des données (4)
-- on peut se faire une bonne idée des propriétés des données avec la combinaison des fonctions =plot= et =window= ;
-- il est néanmoins un peu pénible et inefficace de visualiser /une bonne partie des données/ avec une résolution permettant de voir les potentiels d'action individuels, comme sur la dernière figure, de cette façon ;
-- j'ai donc créé ma propre fonction / méthode, =explore=, permettant de faire cela ;
-- cette fonction appelle =plot= et =window= mais elle est interactive et permet de passer de la visualisation du segment [t,t+δ] au segment suivant [t+δ,t+2δ] en tapant simplement =return=.
-** Téléchargement du fichier de fonctions (1)
-- mes fonctions ne sont pas encore organisées sous forme de paquet =R= ;
-- la dernière version de ce fichier peut être téléchargée depuis le dépôt [[https://github.com/][github]] dans le projet =Neuronal-spike-sorting= ;
-- mais plutôt que d'effectuer le téléchargement « à  la main », nous allons le faire avec =R= ;
-- nous affectons donc à la variable =github= l'=URL= du fichier de fonctions :
-#+LaTeX: \tiny
-#+name: affection-github
-#+BEGIN_SRC R :exports code :cache yes :noweb yes :session *R*
-  github <- "<<adresse-github()>>"
-#+END_SRC
-
-#+RESULTS[12672ab8c069a85ee3cfeda886c1e93202370941]: affection-github
-: https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R
-
-#+LaTeX: \normalsize
-
-Il manque un « .R » à la fin de l'adresse affichée ci-dessus (c'est hors cadre).
-
-** Téléchargement du fichier de fonctions (2)
-- nous allons télécharger le fichier de fonctions dans un fichier que nous nommerons =sorting.R= ;
-- nous allons employer la fonction =download.file=, comme pour notre téléchargement de données ;
-- il y a ici une petite subtilité due au fait que nous employons une adresse sécurisée ([[http://fr.wikipedia.org/wiki/HTTPS][https]]) ;
-- nous allons devoir spécifier « =method= = "wget" » pour effectuer notre tâche ;
-- comme le fichier est un fichier texte (contrairement au fichier binaire précédent) nous pouvons garder la valeur par défaut de l'argument =mode= :
-#+name: telechargment-de-sorting.R
-#+BEGIN_SRC R :session *R* :exports code
-  download.file(github,"sorting.R",method="wget")
-#+END_SRC
-
-#+RESULTS: telechargment-de-sorting.R
-: 0
-
-** Chargement du fichier de fonctions dans l'espace de travail et utilisation de =explore=
-Nous chargeons les fonctions définies dans =sorting.R= de façon tout à fait banale avec la commande =source= :
-#+name: chargement-sorting.R
-#+BEGIN_SRC R :session *R* :exports code
-  source("sorting.R")
-#+END_SRC
-
-#+RESULTS: chargement-sorting.R
-
-Nous pouvons maintenant appeler la fonction =explore= :
-#+name: explore-lD
-#+BEGIN_SRC R :session *R* exports code :eval never
-  explore(lD,col=c("black","grey70"))
-#+END_SRC
-- j'ai changé ici les couleurs utilisées par défaut ; 
-- lorsque la fonction est lancée, un graphe apparaît et =R= vous fait des propositions en ligne de commande ;
-- il suffit de faire un choix puis de taper =return=.  
-
-
 * Normalisation des données et détection des événements :export:
-
 ** Normalisation des événements (1)
 - notre première figure (\ref{fig:lD-complet}) suggère que le rapport signal sur bruit n'est pas homogène sur l'ensemble des quatre sites ;
 - il semble être moins bon sur le quatrième ;
@@ -464,19 +407,36 @@ Nous allons comparer au moyen d'un [[http://fr.wikipedia.org/wiki/Diagramme_Quan
                      lines(gogoQ,sort(x/sd(x)),col=colV[i],lwd=2,lty=2)}))
 #+END_SRC
 #+LaTeX: \normalsize
-
+Ici le premier appel à =plot= ne trace pas de courbe mais génère des axes avec des labels. La fonction =invisible= bloque l'affichage des messages générés par une fonction (ce n'est que cosmétique).
 ** Normalisation des événements (6)
 #+caption: Diagrammes Quantiles-Quantiles de comparaison de la normalisation basée sur la =MAD= (lignes continues) et de celle basée sur l'écart type (lignes brisées) pour chacun des quatre sites (1 en rouge, 2 en gris, 3 en bleu, 4 en orange). Les quantiles théoriques sont ceux d'une loi normale centrée réduite. Les lignes verticales pointillées coupent l'axe des x en -1,25 et +1,25.
 #+attr_latex: width=0.8\textwidth
 #+name: fig-comparaison-normalisation
 #+header: :width 1000 :height 800 :cache yes :noweb yes
-#+BEGIN_SRC R :session *R* :exports results :results output graphics :file fig-comparaison-normalisation.png
+#+BEGIN_SRC R :session *R* :exports none :results output graphics :file fig-comparaison-normalisation.png
   par(cex=2)
   <<comparaison-normalisation>>
 #+END_SRC
 
 #+RESULTS[70c8a8570667ac3aa741023fb75d297de6f833fc]: fig-comparaison-normalisation
 [[file:fig-comparaison-normalisation.png]]
+
+#+BEGIN_LaTeX
+  \begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.65\textwidth]{fig-comparaison-normalisation.png}
+  \end{figure}
+  \scriptsize
+  Diagrammes Quantiles-Quantiles de comparaison de la normalisation basée sur la \texttt{MAD} (lignes continues) et de celle basée sur l'écart type (lignes brisées) pour chacun des quatre sites (1 en rouge, 2 en gris, 3 en bleu, 4 en orange). Les quantiles théoriques sont ceux d'une loi normale centrée réduite. Les lignes verticales pointillées coupent l'axe des x en -1,25 et +1,25.
+  \normalsize
+#+END_LaTeX
+
+#+BEGIN_HTML
+  <div class="figure">
+  <p><img src="fig-comparaison-normalisation.png"  alt="fig-comparaison-normalisation.png" /></p>
+  <p>Diagrammes Quantiles-Quantiles de comparaison de la normalisation basée sur la <code>MAD</code> (lignes continues) et de celle basée sur l'écart type (lignes brisées) pour chacun des quatre sites (1 en rouge, 2 en gris, 3 en bleu, 4 en orange). Les quantiles théoriques sont ceux d'une loi normale centrée réduite. Les lignes verticales pointillées coupent l'axe des x en -1,25 et +1,25.</p>
+  </div>
+#+END_HTML
 
 ** Détection des événements (1)
 Nous allons utiliser une méthode plutôt simple pour détecter nos événements – des maxima locaux au-dessus d'un seuil :
