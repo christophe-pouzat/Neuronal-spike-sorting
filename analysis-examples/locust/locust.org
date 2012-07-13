@@ -1152,7 +1152,7 @@ The number of detected events keeps decreasing (that's good!).
 :   Smallest and largest inter event intervals: 10 and 50741 sampling points.
 
 Since there is not much change anymore, we stop here.
-The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling}.
+The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling} and \ref{fig:bad-peeling}.
 
 #+CAPTION: An exemple of "good" peeling job (that's the general case). 100 ms of data from the four recording sites are shown (between sec. 3.9 and sec. 4.0). Each panel shows from top to bottom 5 successive peeling iterations starting with the raw data. A superposition of 3 spikes is seen to be resolved mainly on sites 2 and 4 (close to the end of displayed data). Same scale for every trace. 
 #+LABEL: fig:good-peeling
@@ -1186,10 +1186,66 @@ The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling}.
 #+RESULTS: good-peeling
 [[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/good-peeling.png]]
 
+#+CAPTION: An exemple of "bad" peeling job. 100 ms of data from the four recording sites are shown (between sec. 0.9 and sec. 1.0). Each panel shows from top to bottom 5 successive peeling iterations starting with the raw data. Here, the large superposition close to the end of the displayed data is no resolved. Same scale for every trace.
+#+LABEL: fig:bad-peeling
+#+ATTR_LaTeX: width=0.8\textwidth
+#+name: bad-peeling
+#+headers: :width=1000 :height 1500
+#+BEGIN_SRC R :exports results :results output graphics :file bad-peeling.png
+  goodEx <- unclass(window(lD,0.9,1.0))
+  goodEx1 <- unclass(window(lD1,0.9,1.0))
+  goodEx2 <- unclass(window(lD2,0.9,1.0))
+  goodEx3 <- unclass(window(lD3,0.9,1.0))
+  goodEx4 <- unclass(window(lD4,0.9,1.0))
+  goodEx5 <- unclass(window(lD5,0.9,1.0))
+  yRange <- range(goodEx)
+  layout(matrix(c(1:6,0,7:18,0,19:24),nc=2))
+  par(mar=c(0.1,0.1,0.1,0.1))
+  invisible(sapply(1:4,
+                   function(sIdx) {
+                     if (sIdx == 1 || sIdx == 4) col <- "black"
+                     else col <- "red"
+                     plot(goodEx[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     plot(goodEx1[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     plot(goodEx2[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     plot(goodEx3[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     plot(goodEx4[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     plot(goodEx5[,sIdx],type="l",axes=FALSE,xlab="",ylab="",ylim=yRange,col=col,lwd=1)
+                     text(100,0.5*yRange[2],paste("site",sIdx),cex=2)
+                   }))
+#+END_SRC
+
+#+RESULTS: bad-peeling
+[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/bad-peeling.png]]
+
 It's time to remove extra "copies" of the original data:
 #+BEGIN_SRC R :exports code :results output
-  rm(lD1,lD2,lD3,lD4)
+  rm(lD1,lD2,lD3,lD4,lD5)
 #+END_SRC
 
 #+RESULTS:
+
+** Summurazing the results so far
+In order to get a single "best" classification combining the successive classifications resulting from our individual peeling iterations, we use function =fuseEventsMatched= which "sticks" two =eventsMatched= objects together reordering their rows in chronological order:
+#+name: fuse-all
+#+BEGIN_SRC R :exports code :results output
+    evtsMatch <- fuseEventsMatched(evtsMatch1,
+                                   fuseEventsMatched(evtsMatch2,
+                                                     fuseEventsMatched(evtsMatch3,
+                                                                       fuseEventsMatched(evtsMatch4,evtsMatch5))))
+#+END_SRC
+
+#+RESULTS: fuse-all
+
+We can look at the first 10 elements:
+#+name: first-10-evtsMatch
+#+BEGIN_SRC R :exports both :results output :rownames true
+  evtsMatch[,1:10]
+#+END_SRC
+
+#+RESULTS: first-10-evtsMatch
+:           [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
+: clusterID    8   10    8   10   10    7    9    8    8     6
+: position   282  852 1046 1161 1161 1205 1680 1835 2400  2600
+: δx1000    -220 -243 -344  277  249 -244 -162 -151  -14  -484
 
