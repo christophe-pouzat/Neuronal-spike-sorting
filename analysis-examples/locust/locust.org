@@ -4,16 +4,13 @@
 #+LINK_HOME: http://xtof.disque.math.cnrs.fr/index.html
 #+LINK_UP: http://xtof.disque.math.cnrs.fr/sorting.html
 #+STYLE: <link rel="stylesheet" href="http://orgmode.org/org.css" type="text/css" />
-#+Property: session *R-on-pouy* 
-#+PROPERTY: dir /xtof@localhost#2222:R/test/locust
+#+Property: session *R* 
+
 
 #+name: R-local-language-setup
 #+BEGIN_SRC R :exports none :results output
   Sys.setlocale(category="LC_MESSAGES",locale="C")
 #+END_SRC
-
-#+RESULTS: R-local-language-setup
-: [1] "C"
 
 * How to proceed?
 
@@ -26,17 +23,11 @@ We start by loading file =sorting.R= containing the sorting specific functions f
   "https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R"
 #+END_SRC
 
-#+RESULTS[b75b15cdcbefc030b62b7ea6e95d3c27463d94eb]: code-url
-: https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R
-
 to a file named, guess what:
 #+name: code-name
 #+BEGIN_SRC emacs-lisp :exports none :cache yes :results value
   "sorting.R"
 #+END_SRC
-
-#+RESULTS[d743ba3c8d88e9c4d697812f729d54865d5ed643]: code-name
-: sorting.R
 
 using function =download.file= setting the optional argument =method= to =wget= since we are downloading from an =https=:
 #+name: code
@@ -50,8 +41,6 @@ The functions defined in the file can then be made accessible from the =R= works
 #+BEGIN_SRC R :noweb yes :results output 
   source("<<code-name()>>")
 #+END_SRC
-
-#+RESULTS: load-code
 
 ** Loading the data
 The data are simply loaded, once we know where to find them and if we do not forget that they have been compressed with =gzip=. The data are stored with one file per recording channel in double format. They were sampled at 15 kHz and there is 20 s of them. Since they are compressed, we cannot read them directly into =R= from the depository nd we must download them first:
@@ -84,9 +73,6 @@ We can check that our =lD= object has the correct dimension:
 dim(lD)
 #+end_src
 
-#+RESULTS:
-: [1] 300000      4
-
 * Preliminary Analysis
 
 We are going to start our analysis by some "sanity checks" to make sure that nothing "weird" happened during the recording.
@@ -98,16 +84,6 @@ We should start by getting an overall picture of the data like the one provided 
 summary(lD,digits=2)
 #+end_src
 
-#+RESULTS:
-:      site 1           site 2           site 3           site 4     
-:  Min.   :-9.074   Min.   :-8.229   Min.   :-6.890   Min.   :-7.35  
-:  1st Qu.:-0.371   1st Qu.:-0.450   1st Qu.:-0.530   1st Qu.:-0.49  
-:  Median :-0.029   Median :-0.036   Median :-0.042   Median :-0.04  
-:  Mean   : 0.000   Mean   : 0.000   Mean   : 0.000   Mean   : 0.00  
-:  3rd Qu.: 0.326   3rd Qu.: 0.396   3rd Qu.: 0.469   3rd Qu.: 0.43  
-:  Max.   :10.626   Max.   :11.742   Max.   : 9.849   Max.   :10.56
-
-
 
 We see that the data range (=maximum - minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar.
 
@@ -118,20 +94,12 @@ We can check next if some processing like a division by the /standard deviation/
 apply(lD,2,sd)
 #+end_src
 
-#+RESULTS:
-: site 1 site 2 site 3 site 4 
-:      1      1      1      1
-
 ** Discretization step amplitude
 We clearly see that these data have been /scaled/, that is, normalized to have an SD of 1. Since the data have been digitized we can easily obtain the apparent size of the digitization set:
 #+NAME: get-digitization-setp-of-lD
 #+begin_src R :exports both :results output :rownames yes
 apply(lD,2, function(x) min(diff(sort(unique(x)))))
 #+end_src
-
-#+RESULTS:
-:      site 1      site 2      site 3      site 4 
-: 0.006709845 0.009194500 0.011888433 0.009614042
 
 ** Detecting saturation
 Before embarking into a comprehensive analysis of data that we did not record ourselves (of that we recorded so long ago that we do not remember any "remarkable" event concerning them), it can be wise to check that no amplifier or A/D card saturation occurred. We can quickly check for that by looking at the length of the longuest segment of constant value. When saturation occurs the recorded value stays for many sampling points at the same upper or lower saturating level.
@@ -140,9 +108,6 @@ Before embarking into a comprehensive analysis of data that we did not record ou
 ndL <- lapply(1:4,function(i) cstValueSgts(lD[,i]))
 sapply(ndL, function(l) max(l[2,]))
 #+end_src 
-
-#+RESULTS:
-: [1] 2 2 2 2
 
 
 We see that for each recording site, the longest segment of constant value is /two sampling points/ long, that is 2/15 ms. There is no ground to worry about saturation here.
@@ -159,26 +124,20 @@ It is then straightforward to plot the whole data set:
 #+LABEL: fig:lD-whole
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: plot-whole-lD
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file lD-whole.png :results output graphics
 plot(lD)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/lD-whole.png]]
 
 It is also good to "zoom in" and look at the data with a finer time scale:
 #+CAPTION: First 200 ms of the locust data set.
 #+LABEL: fig:lD-first200
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: plot-first200ms-lD
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file lD-first200ms.png :results output graphics
 plot(window(lD,start=0,end=0.2))
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/lD-first200ms.png]]
 
 * Data renormalization
 
@@ -194,15 +153,12 @@ where the last line of code ensures that =lD= is still an =mts= object. We can c
 #+LABEL: fig:site1-with-MAD-and-SD
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: site1-with-MAD-and-SD
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file site1-with-MAD-and-SD.png :results output graphics
 plot(window(lD[,1],0,0.2))
 abline(h=c(-1,1),col=2)
 abline(h=c(-1,1)*sd(lD[,1]),col=4,lty=2,lwd=2)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/site1-with-MAD-and-SD.png]]
 
 ** A quick check that the =MAD= "does its job"
 We can check that the =MAD= does its job as a robust estimate of the /noise/ standard deviation by looking at [[http://en.wikipedia.org/wiki/Q-Q_plot][Q-Q plots]] of the whole traces normalized with the =MAD= and normalized with the "classical" =SD=.
@@ -210,7 +166,7 @@ We can check that the =MAD= does its job as a robust estimate of the /noise/ sta
 #+LABEL: fig:check-MAD
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: check-MAD
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file check-MAD.png :results output graphics
   lDQ <- apply(lD,2,quantile, probs=seq(0.01,0.99,0.01))
   lDnormSD <- apply(lD,2,function(x) x/sd(x))
@@ -224,9 +180,6 @@ We can check that the =MAD= does its job as a robust estimate of the /noise/ sta
   rm(lDnormSD,lDnormSDQ)
 #+end_src
 
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/check-MAD.png]]
-
 
 We see that the behavior of the "away from normal" fraction is much more homogeneous for small, as well as for large in fact, quantile values with the =MAD= normalized traces than with the =SD= normalized ones. If we consider automatic rules like the three sigmas we are going to reject fewer events (/i.e./, get fewer putative spikes) with the =SD= based normalization than with the =MAD= based one.   
 
@@ -237,9 +190,6 @@ Although we can't illustrate properly this /key/ step on a "static" document it 
 #+begin_src R :exports results  :results output
 quote(explore(lD))
 #+end_src
-
-#+results: explore-lD
-: explore(lD)
 
 Upon using this command the user is invited to move forward (typing "n" + =RETURN= or simply =RETURN=), backward (typing "f" + =RETURN=), to change the abscissa or ordinate scale, etc.
 
@@ -262,15 +212,12 @@ We can see the difference between the /raw/ trace and the /filtered and rectifie
 #+LABEL: fig:compare-raw-and-filtered-lD
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: compare-raw-and-filtered-lD
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file compare-raw-and-filtered-lD.png :results output graphics
   plot(window(lD[,1],0,0.2))
   abline(h=4,col=4,lty=2,lwd=2)
   lines(window(ts(lDfr[,1],start=0,freq=15e3),0,0.2),col=2)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/compare-raw-and-filtered-lD.png]]
 
 Spikes are then detected as local maxima on the /summed, filtered and rectified/ traces:
 #+NAME: detect-spikes
@@ -278,19 +225,11 @@ Spikes are then detected as local maxima on the /summed, filtered and rectified/
 sp1 <- peaks(apply(lDfr,1,sum),15)
 #+end_src
 
-#+RESULTS: detect-spikes
-
 The returned object, =sp1=, is essentially a vector of integer containing the indexes of the detected spikes. To facilitate handling it is in addition defined as an object of class =eventsPos= meaning that entering its name on the command line and typing returns, that is, calling the =print= method on the object gives a short description of it:
 #+NAME: print-sp1
 #+begin_src R :exports both :results output
 sp1
 #+end_src
-
-#+RESULTS: print-sp1
-: 
-: eventsPos object with indexes of 1769 events. 
-:   Mean inter event interval: 169.45 sampling points, corresponding SD: 150.2 sampling points 
-:   Smallest and largest inter event intervals: 9 and 1453 sampling points.
 
 We see that 1769 events were detected. Since the mean inter event interval is very close to the SD, the "compound process" (since it's likely to be the sum of the activities of many neurons) is essentially Poisson.  
 
@@ -301,9 +240,6 @@ We can interactively check the detection quality with:
 quote(explore(sp1,lD,col=c("black","grey50")))
 #+end_src
 
-#+results: explore-sp1
-: explore(sp1, lD, col = c("black", "grey50"))
-
 That leads to a display very similar to the one previously obtained with =explore(lD)= except that the detected events appear superposed on the raw data as red dots.
 
 ** Remove useless objects
@@ -313,8 +249,6 @@ Since we are not going to use =lDfr= anymore we can save memory by removing it:
 remove(lDfr)
 #+end_src
 
-#+RESULTS: remove-lDfr
-
 ** Data set split
 In order to get stronger checks for our procedure and to illustrate better how it works, we are going to split our data set in two parts, establish our model on the first and use this model on both parts:
 #+NAME: split-sp1
@@ -322,17 +256,6 @@ In order to get stronger checks for our procedure and to illustrate better how i
 (sp1E <- as.eventsPos(sp1[sp1 <= dim(lD)[1]/2]))
 (sp1L <- as.eventsPos(sp1[sp1 > dim(lD)[1]/2]))
 #+end_src
-
-#+RESULTS: split-sp1
-: 
-: eventsPos object with indexes of 892 events. 
-:   Mean inter event interval: 167.84 sampling points, corresponding SD: 146.92 sampling points 
-:   Smallest and largest inter event intervals: 10 and 1180 sampling points.
-: 
-: eventsPos object with indexes of 877 events. 
-:   Mean inter event interval: 171.01 sampling points, corresponding SD: 153.6 sampling points 
-:   Smallest and largest inter event intervals: 9 and 1453 sampling points.
-
 
 We see that =eventsPos= objects can be sub-set like classical vectors. We also see that the sub-setting based on total time results in set with roughly the same number of events.
 
@@ -352,13 +275,11 @@ evtsE.med <- median(evtsE)
 evtsE.mad <- apply(evtsE,1,mad)
 #+end_src 
 
-#+RESULTS:
-
 #+CAPTION: Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (100 sampling points) cuts. We see clearly that the dispersion is back to noise level 15 points before the peak and 30 points after the peak (on all sites). We also see that the median event is not back to zero 50 points after the peak, we will have to keep his information in mind when we are going to look for superpositions.
 #+LABEL: fig:check-MAD-on-stereo1-long-cuts
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: check-MAD-on-long-cuts
-#+header :width 2000 :height 2000
+#+header: :width 2000 :height 2000 :exports both
 #+begin_src R :file check-MAD-on-long-cuts.png :results output graphics
 plot(evtsE.med,type="n",ylab="Amplitude")
 abline(v=seq(0,400,10),col="grey")
@@ -366,9 +287,6 @@ abline(h=c(0,1),col="grey")
 lines(evtsE.med,lwd=2)
 lines(evtsE.mad,col=2,lwd=2)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/check-MAD-on-long-cuts.png]]
 
 
 ** Events
@@ -383,25 +301,16 @@ Here we have decided to keep 14 points before and 30 points after our reference 
 summary(evtsE)
 #+end_src
 
-#+RESULTS: summary-evtsE
-: 
-: events object deriving from data set: lD.
-:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
-:  The 'reference' time of each event is located at point 15 of the cut.
-:  There are 892 events in the object.
-
 A =print= method which calls the =plot= method is also available giving:
 #+CAPTION: First 200 events of =evtsE=. Cuts from the four recording sites appear one after the other. The background (white / grey) changes with the site. In red, /robust/ estimate of the "central" event obtained by computing the pointwise median. In blue, /robust/ estimate of the scale (SD) obtained by computing the pointwise =MAD=. 
 #+LABEL: fig:first-200-of-evtsE
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: first-200-of-evtsE
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file first-200-of-evtsE.png :results output graphics
 evtsE[,1:200]
 #+end_src
 
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/first-200-of-evtsE.png]]
 Like =eventsPos= objects, =events= objects can be sub-set /with respect to the rows/ like usual matrix. Notice that a rather sophisticated plot was obtained with an extremely simple command... The beauty of =R= class / method mechanism in action.
 
 ** Noise
@@ -419,13 +328,6 @@ Here =noiseE= is also an =events= object and its =summary= is:
 summary(noiseE)
 #+end_src 
 
-#+RESULTS: summary-noiseE
-: 
-: events object deriving from data set: lD.
-:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
-:  The 'reference' time of each event is located at point 15 of the cut.
-:  There are 1375 events in the object.
-
 The reader interested in checking the effect of the =safetyFactor= argument is invited to try something like:
 #+NAME: safetyFactor-effect
 #+begin_src R :exports results :results output
@@ -433,11 +335,6 @@ quote(noiseElowSF <- mkNoise(sp1E,lD,14,30,safetyFactor=1,2000))
 quote(plot(mean(noiseElowSF),type="l"))
 quote(lines(mean(noiseE),col=2))
 #+end_src
-
-#+results: safetyFactor-effect
-: noiseElowSF <- mkNoise(sp1E, lD, 14, 30, safetyFactor = 1, 2000)
-: plot(mean(noiseElowSF), type = "l")
-: lines(mean(noiseE), col = 2)
 
 * First jitter cancellation
 
@@ -447,14 +344,6 @@ Since the "reference times" of our events are their detected peaks, we expect th
 evtsEo2 <- alignWithProcrustes(sp1E,lD,14,30,maxIt=1,plot=FALSE)
 summary(evtsEo2)
 #+end_src 
-
-#+RESULTS: align-events-on-sample-median-with-order-2-Taylor-expansion
-: 
-: events object deriving from data set: lD.
-:  Events defined as cuts of 45 sampling points on each of the 4 recording sites.
-:  The 'reference' time of each event is located at point 15 of the cut.
-:  Events were realigned on median event.
-:  There are 892 events in the object.
 
 We see that a new line appeared in the =summary= of our resulting =events= object. This line, the one before the last, states that the events were realigned.
 
@@ -474,15 +363,11 @@ In order to eliminate the most obvious superpositions we are going to use a rath
   }
 #+end_src    
 
-#+RESULTS: goodEvtsFct-definition
-
 We then apply our new function to our realigned sample:
 #+NAME: get-good-events-in-evtsEo2
 #+begin_src R :exports code :results output
 goodEvts <- goodEvtsFct(evtsEo2,8)
 #+end_src
-
-#+RESULTS: get-good-events-in-evtsEo2
 
 Here =goodEvts= is a vector of =logical= with as many elements as events in =evtsEo2=. Elements of =goodEvts= are =TRUE= if the corresponding event of =evtsEo2= is "good" (/i.e./, not a superposition) and is =FALSE= otherwise. We can look at the first 200 good events easily with:
 
@@ -490,13 +375,10 @@ Here =goodEvts= is a vector of =logical= with as many elements as events in =evt
 #+LABEL: fig:first-200-good-of-evtsE
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: first-200-good-of-evtsE
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000
 #+begin_src R :file first-200-good-of-evtsE.png :results output graphics
 evtsEo2[,goodEvts][,1:200]
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/first-200-good-of-evtsE.png]]
 
 We see that few superpositions are left but the most obvious ones of our previous [[file:first-200-of-evtsE.png][events figure]] are gone. We can also look at the src_R[:session *R-on-pouy* :results output]{sum(!goodEvts)} =[1] 46= "bad" events with:
 
@@ -504,13 +386,10 @@ We see that few superpositions are left but the most obvious ones of our previou
 #+LABEL: fig:bad-of-evtsE
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: bad-of-evtsE
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000
 #+begin_src R :file bad-of-evtsE.png :results output graphics
 evtsEo2[,!goodEvts]
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/bad-of-evtsE.png]]
 
 * Dimension reduction
 
@@ -531,7 +410,7 @@ We have to be careful here since function =prcomp= assumes that the data matrix 
 #+LABEL: fig:explore-evtsEo2-PC1to4
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: explore-evtsEo2-PC1to4
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file explore-evtsEo2-PC1to4.png :results output graphics
 layout(matrix(1:4,nr=2))
 explore(evtsE.pc,1,5)
@@ -540,9 +419,6 @@ explore(evtsE.pc,3,5)
 explore(evtsE.pc,4,5)
 #+end_src
 
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/explore-evtsEo2-PC1to4.png]]
-
 We can see that the first 3 PCs correspond to pure amplitude variations. An event with a large projection (=score=) on the first PC is smaller than the average event on recording sites 1, 2 and 3, but not on 4. An event with a large projection on PC 2 is larger than average on site 1, smaller than average on site 2 and 3 and identical to the average on site 4. An event with a large projection on PC 3 is larger than the average on site 4 only. PC 4 is the first principal component corresponding to a change in /shape/ as opposed to /amplitude/. A large projection on PC 4 means that the event as a shallower first valley and a deeper second valley than the average event on all recording sites.  
 
 We now look at the next 4 principal components:
@@ -550,7 +426,7 @@ We now look at the next 4 principal components:
 #+LABEL: fig:explore-evtsEo2-PC5to8
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: explore-evtsEo2-PC5to8
-#+header :width 1000 :height 1000
+#+header: :width 1000 :height 1000 :exports both
 #+begin_src R :file explore-evtsEo2-PC5to8.png :results output graphics
 layout(matrix(1:4,nr=2))
 explore(evtsE.pc,5,5)
@@ -558,9 +434,6 @@ explore(evtsE.pc,6,5)
 explore(evtsE.pc,7,5)
 explore(evtsE.pc,8,5)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/explore-evtsEo2-PC5to8.png]]
 
 An event with a large projection on PC 5 tends to be "slower" than the average event. An event with a large projection on PC 6 exhibits a slower kinetics of its second valley than the average event. PC 5 and 6 correspond to effects shared among recording sites. PC 7 correspond also to a "change of shape" effect on all sites except the first. Events with a large projection on PC 8 rise slightly faster and decay slightly slower than the average event on all recording site. Notice also that PC 8 has a "noisier" aspect than the other suggesting that we are reaching the limit of the "events extra variability" compared to the variability present in the background noise.
 
@@ -571,10 +444,6 @@ sum(evtsE.pc$sdev^2)
 sum(diag(cov(t(noiseE))))+sum(evtsE.pc$sdev[1:8]^2)
 #+end_src
 
-#+RESULTS: variance-comparison
-: [1] 721.0221
-: [1] 717.9175
-
 This near equality means that we should not include component beyond the 8th one in our analysis. That's leave the room to use still fewer components. 
 
 ** Static representation of the projected data
@@ -583,7 +452,7 @@ We can build a =scatter plot matrix= showing the projections of our "good" event
 #+LABEL: fig:scatter-plot-matrix-projOnPCs-evtsEo2
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: scatter-plot-matrix-projOnPCs-evtsEo2
-#+header :width 1500 :height 1500
+#+header: :width 1500 :height 1500 :exports both
 #+begin_src R :file scatter-plot-matrix-projOnPCs-evtsEo2.png :results output graphics
 panel.dens <- function(x,...) {
   usr <- par("usr")
@@ -597,9 +466,6 @@ panel.dens <- function(x,...) {
 }
 pairs(evtsE.pc$x[,1:4],pch=".",gap=0,diag.panel=panel.dens)
 #+end_src 
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/scatter-plot-matrix-projOnPCs-evtsEo2.png]]
 
 
 ** Dynamic representation of the projected data
@@ -641,8 +507,6 @@ km10 <- kmeans(evtsE.pc$x[,1:3],centers=10,iter.max=100,nstart=100)
 c10 <- km10$cluster
 #+end_src
 
-#+RESULTS: cluster-with-k-means
-
 Since function =kmeans= of =R= does use a random initialization, we set the seed (as well as the =kind=) of our pseudo random number generator in order to ensure full reproducibility. In order to ensure reproducibility even if another seed is used as well as to facilitate the interpretation of the results, we "order" the clusters by "size" using the integrated absolute value of the central / median event of each cluster as a measure of its size.
 
 #+NAME: order-clusters
@@ -655,8 +519,6 @@ cluster.med <- cluster.med[,newOrder]
 cluster.mad <- cluster.mad[,newOrder]
 c10b <- sapply(1:10, function(idx) (1:10)[newOrder==idx])[c10]
 #+end_src 
-
-#+RESULTS: order-clusters
 
 ** Results inspection with =GGobi=
 
@@ -683,7 +545,7 @@ Another way to inspect the clustering results is to look at cluster specific eve
 #+LABEL: fig:events-clusters1to4
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: events-clusters1to4
-#+header :width 1500 :height 1500
+#+header: :width 1500 :height 1500 :exports both
 #+begin_src R :file events-clusters1to4.png :results output graphics
 layout(matrix(1:4,nr=4))
 par(mar=c(1,1,1,1))
@@ -693,16 +555,13 @@ plot(evtsEo2[,goodEvts][,c10b==3],y.bar=5)
 plot(evtsEo2[,goodEvts][,c10b==4],y.bar=5)
 #+end_src
 
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/events-clusters1to4.png]]
-
 Notice the increased =MAD= on the rising phase of cluster 2 on the first recording site. A sing of misalignment of the events of this cluster.
 
 #+CAPTION: Next 4 clusters. Cluster 5 at the top, cluster 8 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
 #+LABEL: fig:events-clusters5to8
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: events-clusters5to8
-#+header :width 1500 :height 1500
+#+header: :width 1500 :height 1500 :exports both
 #+begin_src R :file events-clusters5to8.png :results output graphics
 layout(matrix(1:4,nr=4))
 par(mar=c(1,1,1,1))
@@ -712,25 +571,19 @@ plot(evtsEo2[,goodEvts][,c10b==7],y.bar=5)
 plot(evtsEo2[,goodEvts][,c10b==8],y.bar=5)
 #+end_src
 
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/events-clusters5to8.png]]
-
 Cluster 5 has few events while some "subtle" superpositions are present in cluster 7.
 
 #+CAPTION: Last 2 clusters. Cluster 9 at the top, cluster 10 at the bottom. Scale bar: 5 global =MAD= units. Red, cluster specific central / median event. Blue, cluster specific =MAD=. 
 #+LABEL: fig:events-clusters9to10
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: events-clusters9to10
-#+header :width 1500 :height 750
+#+header: :width 1500 :height 750 :exports both
 #+begin_src R :file events-clusters9to10.png :results output graphics
 layout(matrix(1:2,nr=2))
 par(mar=c(1,1,1,1))
 plot(evtsEo2[,goodEvts][,c10b==9],y.bar=5)
 plot(evtsEo2[,goodEvts][,c10b==10],y.bar=5)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/events-clusters9to10.png]]
 
 Cluster 10 exhibits an extra variability on sites 1 and 4 around its first valley and its peak.
 
@@ -757,16 +610,13 @@ We can now compare the events of cluster 2 before and after cluster specific rea
 #+LABEL: fig:events-clusters-2-with-without-alignment
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: events-clusters-2-with-without-alignment
-#+header :width 1500 :height 750
+#+header: :width 1500 :height 750 :exports both
 #+begin_src R :file events-clusters-2-with-without-alignment.png :results output graphics
 layout(matrix(1:2,nr=2))
 par(mar=c(1,1,1,1))
 plot(evtsEo2[,goodEvts][,c10b==2],y.bar=5)
 plot(ujL[[2]],y.bar=5)
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/events-clusters-2-with-without-alignment.png]]
 
 The extra variability in the rising phase on site 1 as been suppressed by realignment. 
 
@@ -777,7 +627,7 @@ We can summarize our estimation procedure so far by plotting a matrix of "templa
 #+LABEL: fig:template-summary-figure
 #+ATTR_LaTeX: width=0.8\textwidth
 #+NAME: template-summary-figure
-#+header :width 1500 :height 1500
+#+header: :width 1500 :height 1500 :exports both
 #+begin_src R :file template-summary-figure.png :results output graphics
   library(ggplot2)
   template.med <- sapply(1:10,function(i) median(ujL[[i]]))
@@ -798,9 +648,6 @@ We can summarize our estimation procedure so far by plotting a matrix of "templa
         )
         
 #+end_src
-
-#+RESULTS:
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/template-summary-figure.png]]
 
 
 * "Brute force" superposition resolution
@@ -828,8 +675,6 @@ These long cuts---long enough for waveforms of each neuron on recording site to 
                 )
 #+END_SRC
 
-#+RESULTS: get-long-sweeps
-
 We can quickly check that our cuts are long enough by plotting, for each cluster, the center (with the waveforms on the four recording sites one after the other) together with the =MAD=.
 #+CAPTION: The cluster centers (black) and associated /MAD/ (red) built from the long cuts (130 sampling points long). The left column shows, from top to bottom, clusters 1 to 5 and the right column shows, from top to bottom, clusters 6 to 10. The waveforms on each of the fours recording sites are displayed one after the other, separated by vertical doted lines. The different sub-plots have the same horizontal scale but different vertical scales. To compare amplitude one can use the fact that the vertical distance between the null horizontal line and the MAD (red) line is constant. 
 #+LABEL: fig:cuts-are-long-enough
@@ -848,9 +693,6 @@ We can quickly check that our cuts are long enough by plotting, for each cluster
                      matlines(Y,type="l",col=c(1,2),lty=1)}))
 #+END_SRC
 
-#+RESULTS: cuts-are-long-enough
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/cuts-are-long-enough.png]]
-
 Using, as usual, the median of the cuts as an estimate of the clusters' centers, we build functional estimates of the "long" centers:
 #+name: idealEvtFctList
 #+BEGIN_SRC R :exports code :results output
@@ -861,8 +703,6 @@ Using, as usual, the median of the cuts as an estimate of the clusters' centers,
                                      function(i) sincfun(-49:80,m[,i]))
                             })
 #+END_SRC
-
-#+RESULTS: idealEvtFctList
 
 ** Peeling process
 
@@ -877,8 +717,6 @@ We apply =eventsMatched= function to /every cut/ in =evts= ("good" and "bad" one
                               interval=c(-5,5))
 #+END_SRC
 
-#+RESULTS: get-matching-template-1
-
 *** =onePerClique=
 We are going to try to get an as unambiguous peeling as possible by subtracting only one template at a time when potentially strong overlaps are present. To this end we will define /cliques/, groups of events where the inter event interval within the group is smaller than some critical length. For each clique, every possible template (selected by =eventsMatched=) is subtracted "alone". The RSS is computed after each subtraction and the template giving the smallest RSS is selected.
 
@@ -888,24 +726,16 @@ Our initial =eventsMatched= object, =evtsMatch1= contains:
   dim(evtsMatch1)[2]
 #+END_SRC
 
-#+RESULTS: number-of-events-in-evtsMatch1
-: [1] 1769
-
 events. If we keep only one event per clique:
 #+name: apply-onePerClique-to-evtsMatch1
 #+BEGIN_SRC R :exports code :results output
   evtsMatch1.select <- onePerClique(evtsMatch1)
 #+END_SRC
 
-#+RESULTS: apply-onePerClique-to-evtsMatch1
-
 we are left with:
 #+BEGIN_SRC R :exports both :results output
   length(evtsMatch1.select)
 #+END_SRC
-
-#+RESULTS:
-: [1] 1447
 
 events.
 
@@ -918,8 +748,6 @@ We get the first "peeling" of our data with:
   lD1 <- residuals(evtsMatch1[,evtsMatch1.select])
 #+END_SRC
 
-#+RESULTS: lD1
-
 One way to check the importance of jitter correction in the peeling process is to repeat this subtraction with a modified version of =evtsMatch1= where the =δ= row has been set to 0:
 #+name: lD1bis
 #+BEGIN_SRC R :exports code :results output
@@ -927,8 +755,6 @@ One way to check the importance of jitter correction in the peeling process is t
   evtsMatch1bis["δx1000",] <- 0
   lD1bis <- residuals(evtsMatch1bis[,evtsMatch1.select])
 #+END_SRC
-
-#+RESULTS: lD1bis
 
 A comparison of the traces: raw data (=lD=), peeled data without jitter correction (=lD1bis=) and peeled data with jitter correction (=lD1=) for the second recording site is shown on Fig.~\ref{fig:jitter-correction-effect}.
 #+CAPTION: 100 ms of data from the first recording site (between sec. 0.8 and 0.9). Top row, actual data; middle row, peeled data without jitter correction; bottom row, peeled data with jitter correction. The effect of uncompensated for jitter is clear for the first large spike. Notice that the ordinate scales is not uniform.
@@ -942,9 +768,6 @@ A comparison of the traces: raw data (=lD=), peeled data without jitter correcti
                     "peel no jitter"=window(lD1[,1],0.8,0.9))
   plot(compData,main="",xlab="Time (s)",cex=2)
 #+END_SRC 
-
-#+RESULTS: jitter-correction-effect
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/jitter-correction-effect.png]]
 
 In fact the easiest way to explore the quality of the peeling procedure is to use the interactive =explore= function with:
 #+name: explore-peeling
@@ -967,12 +790,6 @@ We now take =lD1= as "raw" data and we repeat a peeling iteration. First with an
   (sp2 <- peaks(apply(lDfr,1,sum),15))
 #+END_SRC
 
-#+RESULTS: detect-events-lD1
-:  
-: eventsPos object with indexes of 481 events. 
-:   Mean inter event interval: 621.34 sampling points, corresponding SD: 742.8 sampling points 
-:   Smallest and largest inter event intervals: 8 and 5656 sampling points.
-
 #+begin_src R :exports none :results output
   remove(lDfr)
 #+end_src
@@ -985,8 +802,6 @@ Notice that we changed =lD= to =lD1= in our =filter= call and that /we did not r
   evts1 <- mkEvents(sp2,lD1,14,30)
 #+end_src    
 
-#+RESULTS: mkEvents-sp2
-
 We "match" the events:
 #+name: get-matching-template-2
 #+BEGIN_SRC R :exports code :results output
@@ -995,23 +810,17 @@ We "match" the events:
                               interval=c(-5,5))
 #+END_SRC 
 
-#+RESULTS: get-matching-template-2
-
 We keep only one event per clique:
 #+name: apply-onePerClique-to-evtsMatch2
 #+BEGIN_SRC R :exports code :results output
   evtsMatch2.select <- onePerClique(evtsMatch2)
 #+END_SRC
 
-#+RESULTS: apply-onePerClique-to-evtsMatch2
-
 We use =residuals=:
 #+name: lD2
 #+BEGIN_SRC R :exports code :results output
   lD2 <- residuals(evtsMatch2[,evtsMatch2.select])
 #+END_SRC
-
-#+RESULTS: lD2
 
 Here again, exploring interactively the results is a good idea:
 #+BEGIN_SRC R :exports code :eval never
@@ -1031,12 +840,6 @@ We see that some spikes are left so we run another iteration:
   (sp3 <- peaks(apply(lDfr,1,sum),15))
 #+END_SRC
 
-#+RESULTS: peel-it-3-1
-:  
-: eventsPos object with indexes of 150 events. 
-:   Mean inter event interval: 1977.6 sampling points, corresponding SD: 2492 sampling points 
-:   Smallest and largest inter event intervals: 8 and 17410 sampling points.
-
 The number of detected events keeps decreasing (that's good!).
 #+begin_src R :exports none :results output
   remove(lDfr)
@@ -1051,8 +854,6 @@ The number of detected events keeps decreasing (that's good!).
   evtsMatch3.select <- onePerClique(evtsMatch3)
   lD3 <- residuals(evtsMatch3[,evtsMatch3.select])
 #+END_SRC
-
-#+RESULTS: peel-it-3-2
 
 A quick interactive exploration with:
 #+BEGIN_SRC R :exports code :eval never
@@ -1071,18 +872,10 @@ shows that the improvements are still obtained so we go for another round:
   (sp4 <- peaks(apply(lDfr,1,sum),15))
 #+END_SRC
 
-#+RESULTS: peel-it-4-1
-:  
-: eventsPos object with indexes of 62 events. 
-:   Mean inter event interval: 4734.8 sampling points, corresponding SD: 5401 sampling points 
-:   Smallest and largest inter event intervals: 9 and 27609 sampling points.
-
 The number of detected events keeps decreasing (that's good!).
 #+begin_src R :exports none :results output
   remove(lDfr)
 #+end_src
-
-#+RESULTS:
 
 #+name: peel-it-4-2
 #+BEGIN_SRC R :exports code :results output
@@ -1093,8 +886,6 @@ The number of detected events keeps decreasing (that's good!).
   evtsMatch4.select <- onePerClique(evtsMatch4)
   lD4 <- residuals(evtsMatch4[,evtsMatch4.select])
 #+END_SRC
-
-#+RESULTS: peel-it-4-2
 
 #+name: peel-it-5-1
 #+BEGIN_SRC R :exports both :results output
@@ -1108,18 +899,10 @@ The number of detected events keeps decreasing (that's good!).
   (sp5 <- peaks(apply(lDfr,1,sum),15))
 #+END_SRC
 
-#+RESULTS: peel-it-5-1
-:  
-: eventsPos object with indexes of 31 events. 
-:   Mean inter event interval: 9387.57 sampling points, corresponding SD: 12844.54 sampling points 
-:   Smallest and largest inter event intervals: 9 and 50760 sampling points.
-
 The number of detected events keeps decreasing (that's good!).
 #+begin_src R :exports none :results output
   remove(lDfr)
 #+end_src
-
-#+RESULTS:
 
 #+name: peel-it-5-2
 #+BEGIN_SRC R :exports code :results output
@@ -1130,8 +913,6 @@ The number of detected events keeps decreasing (that's good!).
   evtsMatch5.select <- onePerClique(evtsMatch5)
   lD5 <- residuals(evtsMatch5[,evtsMatch5.select])
 #+END_SRC
-
-#+RESULTS: peel-it-5-2
 
 #+name: peel-it-6-1
 #+BEGIN_SRC R :exports both :results output
@@ -1145,11 +926,6 @@ The number of detected events keeps decreasing (that's good!).
   (sp6 <- peaks(apply(lDfr,1,sum),15))
 #+END_SRC
 
-#+RESULTS: peel-it-6-1
-:  
-: eventsPos object with indexes of 18 events. 
-:   Mean inter event interval: 15721.59 sampling points, corresponding SD: 17896.59 sampling points 
-:   Smallest and largest inter event intervals: 10 and 50741 sampling points.
 
 Since there is not much change anymore, we stop here.
 The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling} and \ref{fig:bad-peeling}.
@@ -1183,8 +959,6 @@ The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling} an
                    }))
 #+END_SRC
 
-#+RESULTS: good-peeling
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/good-peeling.png]]
 
 #+CAPTION: An exemple of "bad" peeling job. 100 ms of data from the four recording sites are shown (between sec. 0.9 and sec. 1.0). Each panel shows from top to bottom 5 successive peeling iterations starting with the raw data. Here, the large superposition close to the end of the displayed data is no resolved. Same scale for every trace.
 #+LABEL: fig:bad-peeling
@@ -1215,15 +989,12 @@ The progression of the peeling is illustrated on Fig. \ref{fig:good-peeling} an
                    }))
 #+END_SRC
 
-#+RESULTS: bad-peeling
-[[file:/ssh:xtof@localhost#2222:/home/xtof/R/test/locust/bad-peeling.png]]
 
 It's time to remove extra "copies" of the original data:
 #+BEGIN_SRC R :exports code :results output
   rm(lD1,lD2,lD3,lD4,lD5)
 #+END_SRC
 
-#+RESULTS:
 
 ** Summurazing the results so far
 In order to get a single "best" classification combining the successive classifications resulting from our individual peeling iterations, we use function =fuseEventsMatched= which "sticks" two =eventsMatched= objects together reordering their rows in chronological order:
@@ -1235,17 +1006,10 @@ In order to get a single "best" classification combining the successive classifi
                                                                        fuseEventsMatched(evtsMatch4,evtsMatch5))))
 #+END_SRC
 
-#+RESULTS: fuse-all
 
 We can look at the first 10 elements:
 #+name: first-10-evtsMatch
 #+BEGIN_SRC R :exports both :results output :rownames true
   evtsMatch[,1:10]
 #+END_SRC
-
-#+RESULTS: first-10-evtsMatch
-:           [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
-: clusterID    8   10    8   10   10    7    9    8    8     6
-: position   282  852 1046 1161 1161 1205 1680 1835 2400  2600
-: δx1000    -220 -243 -344  277  249 -244 -162 -151  -14  -484
 
