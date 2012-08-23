@@ -1,0 +1,296 @@
+#+TITLE:     Sorting With Lisp
+#+AUTHOR:    Christophe Pouzat
+#+EMAIL:     christophe.pouzat@gmail.com
+#+DATE:      2012-08-21 mar.
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+
+* Downloading the data
+We start by downloading the data from where they are:
+#+name: repository-address
+: http://xtof.disque.math.cnrs.fr/data/ 
+using =wget=. There are 4 data files, one per recording site, named respectively: =Locust_1.dat.gz=, =Locust_2.dat.gz=, =Locust_3.dat.gz=, =Locust_4.dat.gz=.   
+
+#+name: data-file-names
+#+BEGIN_SRC emacs-lisp :exports both
+  (let ((prefix "Locust_")
+        (suffix ".dat")
+        (numbers '("1" "2" "3" "4")))
+    (mapcar #'(lambda (i) (concatenate 'string prefix i suffix))
+         numbers))
+  ;;(concatenate 'string address "Locust_1.dat.gz")
+#+END_SRC
+
+#+RESULTS: data-file-names
+| Locust_1.dat | Locust_2.dat | Locust_3.dat | Locust_4.dat |
+
+#+name: compressed-data-file-names
+#+BEGIN_SRC emacs-lisp :var names=data-file-names :exports both
+  (mapcar #'(lambda (n) (concatenate 'string n ".gz"))
+          names)
+#+END_SRC
+
+#+RESULTS: compressed-data-file-names
+| Locust_1.dat.gz | Locust_2.dat.gz | Locust_3.dat.gz | Locust_4.dat.gz |
+
+#+name: full-data-file-names
+#+BEGIN_SRC emacs-lisp :var address=repository-address :var the-names=compressed-data-file-names :exports both
+  (mapcar #'(lambda (n) (concatenate 'string address n))
+          the-names)
+#+END_SRC
+
+#+RESULTS: full-data-file-names
+| http://xtof.disque.math.cnrs.fr/data/Locust_1.dat.gz | http://xtof.disque.math.cnrs.fr/data/Locust_2.dat.gz | http://xtof.disque.math.cnrs.fr/data/Locust_3.dat.gz | http://xtof.disque.math.cnrs.fr/data/Locust_4.dat.gz |
+
+#+name: download-and-gunzip(url=full-data-file-names[0],name=compressed-data-file-names[0])
+#+BEGIN_SRC sh
+  wget $url && \
+      gunzip $name
+#+END_SRC
+
+#+CALL: download-and-gunzip[:cache yes :file Locust_1.dat](full-data-file-names[0],compressed-data-file-names[0])
+
+#+RESULTS: download-and-gunzip[:cache yes :file Locust_1.dat](full-data-file-names[0],compressed-data-file-names[0])
+: Locust_1.dat
+
+#+CALL: download-and-gunzip[:file Locust_2.dat](full-data-file-names[1],compressed-data-file-names[1])[:cache yes]
+
+#+RESULTS: download-and-gunzip[:file Locust_2.dat](full-data-file-names[1],compressed-data-file-names[1])[:cache yes]
+: Locust_2.dat
+
+#+CALL: download-and-gunzip[:cache yes :file Locust_3.dat](full-data-file-names[2],compressed-data-file-names[2])
+
+#+RESULTS: download-and-gunzip[:cache yes :file Locust_3.dat](full-data-file-names[2],compressed-data-file-names[2])
+: Locust_3.dat
+
+#+CALL: download-and-gunzip[:cache yes :file Locust_4.dat](full-data-file-names[3],compressed-data-file-names[3])
+
+#+RESULTS: download-and-gunzip[:cache yes :file Locust_4.dat](full-data-file-names[3],compressed-data-file-names[3])
+: Locust_4.dat
+
+We can quickly check that the downloaded data look fine:
+#+CAPTION: The 20 s of data on each of the four recording sites.
+#+LABEL: fig:whole-raw-data
+#+ATTR_LaTeX: width=0.8\textwidth
+#+name: plot-whole-raw-data-set 
+#+BEGIN_SRC sh :cache yes :file whole-raw-data.png :exports both
+  graph -T png -I d -a 0.0666667 0 -g 0 -w 3.5 -h 0.8 --reposition 0 0.75 0.25 Locust_1.dat --reposition 0 0.5 0.25 Locust_2.dat --reposition 0 0.25 0.25 Locust_3.dat --reposition 0 0.0 0.25 Locust_4.dat > whole-raw-data.png
+#+END_SRC
+
+#+RESULTS[a2c7dbd9e029177e8b26288bab3c942b147eff8e]: plot-whole-raw-data-set
+[[file:whole-raw-data.png]]
+
+* Reading the data into Common Lisp session
+
+We are going to use the =ieee-floats= package which is on [[http://www.quicklisp.org/][quicklisp]]. Assuming the package has been installed (see the instruction on quicklisp web site) we load it into our session with:
+#+name: load-ieee-floats
+#+BEGIN_SRC lisp
+  (ql:quickload "ieee-floats")
+#+END_SRC
+
+#+RESULTS: load-ieee-floats
+| ieee-floats |
+
+We now define a function reading into our lisp session a file a floats in double format and returning a vector:
+#+name: define-read-double  
+#+BEGIN_SRC lisp
+  (defun read-double (name)
+    "Reads a file of double-float data and returns a vector"
+    (with-open-file (in name :direction :input
+                        :element-type '(unsigned-byte 64))
+      (let* ((len (file-length in))
+             (res (make-array len :element-type 'double-float)))
+        (dotimes (i len res)
+          (setf (aref res i) (ieee-floats:decode-float64 (read-byte in)))))))
+#+END_SRC
+
+#+RESULTS: define-read-double
+: READ-DOUBLE
+
+We can use this function to create a list of vectors with the raw data. Before doing that wet set the variable =*print-lenght*= to 20 in order to avoid over-filling our session with the printed content of our objects:
+#+name: set-*print-length*
+#+BEGIN_SRC lisp
+  (setf *print-length* 20)
+#+END_SRC
+
+#+RESULTS: set-*print-length*
+: 20
+
+We can now proceed:
+#+name: *data-list*
+#+begin_src lisp :var data-file-names=data-file-names
+  (defparameter *data-list*
+    (mapcar #'read-double data-file-names)
+    "A list of 1 dimensional arrays, each with the raw or derived data of a single electrode")                 
+#+end_src
+
+#+RESULTS: *data-list*
+: *DATA-LIST*
+
+* Preliminary analysis and processing
+
+** Five-number summary
+We are going to compute the [[http://en.wikipedia.org/wiki/Five-number_summary][five-number summary]] of each of our four traces.
+
+Define a function returning the quantile:
+#+name: define-quantile
+#+BEGIN_SRC lisp
+  (defun quantile (data prob)
+    (mapcar #'(lambda (p) 
+                (if (or (< p 0) (< 1 p))
+                    (error "A probability p must satisfy 0 ≤ p ≤ 1!"))) 
+                          prob)
+    (let* ((v (sort (copy-seq data) #'<))
+           (n (length data)))
+      (labels ((qtl (p) 
+                 (let* ((k (* n p))
+                        (floor-k (floor k)))
+                   (cond ((= p 0) (aref v 0))
+                         ((= p 1) (aref v (1- n)))
+                         (t (if (= k floor-k)
+                                (/ (+ (aref v floor-k)
+                                      (aref v (1- floor-k)))
+                                   2)
+                                (aref v floor-k)))))))
+        (if (= (length prob) 1)
+            (qtl (car prob))
+            (mapcar #'qtl prob)))))
+#+END_SRC
+
+#+RESULTS: define-quantile
+: QUANTILE
+
+We use it keeping two decimals for the display:
+#+name: five-numbers-summary
+#+BEGIN_SRC lisp :exports both :cache yes
+  (mapcar #'(lambda (d) (mapcar #'(lambda (x) 
+                                    (float (/ (round x 0.01) 100))) 
+                                (quantile d '(0 0.25 0.5 0.75 1)))) 
+          *data-list*)
+#+END_SRC
+
+#+RESULTS[e8026c989d7cec83ba460f936962571c11d78ecb]: five-numbers-summary
+| -9.07 | -0.37 | -0.03 | 0.33 | 10.63 |
+| -8.23 | -0.45 | -0.04 |  0.4 | 11.74 |
+| -6.89 | -0.53 | -0.04 | 0.47 |  9.85 |
+| -7.35 | -0.49 | -0.04 | 0.43 | 10.56 |
+
+We see that the data range (=maximum= - =minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar. 
+
+** Were the data normalized
+We can check next if some processing like a division by the /standard deviation/ (SD) has been applied. We start by defining functions returning the mean and the standard deviation of vectors:
+
+#+name: define-mean
+#+BEGIN_SRC lisp
+  (defun mean (data)
+    (/ (reduce #'+ data) (length data)))
+#+END_SRC  
+
+#+RESULTS: define-mean
+: MEAN
+
+#+name: define-square
+#+BEGIN_SRC lisp
+  (defmacro square (x)
+  `(* ,x ,x))
+#+END_SRC
+
+#+RESULTS: define-square
+: SQUARE
+
+#+name: define-variance
+#+BEGIN_SRC lisp
+    (defun variance (data)
+      (let ((mean (mean data))
+            (n (length data))
+            (datacr (copy-seq data)))
+        (map-into datacr #'(lambda (x) (square (- mean x))) datacr)
+        (/ (reduce #'+ datacr) (1- n))))
+#+END_SRC
+
+#+RESULTS: define-variance
+: VARIANCE
+
+#+name: define-sd
+#+BEGIN_SRC lisp
+  (defun sd (data)
+    (sqrt (variance data)))
+#+END_SRC
+
+#+RESULTS: define-sd
+: SD
+
+#+name: sd-of-*data-list*
+#+BEGIN_SRC lisp :exports both :cache yes
+  (mapcar #'(lambda (x) (/ (round (sd x) 0.01) 100)) 
+          *data-list*)
+#+END_SRC
+
+#+RESULTS[380111af1b73c13ca54be69ac157a5fb70d887b4]: sd-of-*data-list*
+| 1 | 1 | 1 | 1 |
+
+** Discretization step amplitude
+
+#+name: define-diff
+#+BEGIN_SRC lisp
+  (defun diff (x &key (lag 1))
+    (let* ((n (- (length x) lag))
+           (res (make-array n :element-type (type-of (aref x 0)))))
+      (dotimes (i n res)
+        (setf (aref res i) (- (aref x (+ i lag)) (aref x i))))))
+#+END_SRC
+
+#+RESULTS: define-diff
+: DIFF
+
+#+name: define-unique
+#+BEGIN_SRC lisp
+   (defun unique (x)
+     (let* ((sorted-x (sort (copy-seq x) #'<))
+            (n (length x))
+            (res (make-array n :element-type (type-of (aref sorted-x 0))))
+            (j 0)
+            (v (aref sorted-x 0)))
+       (setf (aref res 0) v)
+       (do* ((i 1 (1+ i)))
+            ((> i (1- n)))
+         (setf v (aref sorted-x i))
+         (cond ((> v (aref res j))
+                (setf j (1+ j))
+                (setf (aref res j) v))))
+       (subseq res 0 (1+ j))))
+#+END_SRC
+
+#+RESULTS: define-unique
+: UNIQUE
+
+We then get the discretization step for each recording site:
+#+name: discretization-step
+#+BEGIN_SRC lisp :exports both :cache yes
+  (mapcar #'(lambda (x) (reduce #'min (diff (unique x)))) 
+          *data-list*)
+#+END_SRC 
+
+#+RESULTS[a83fadeaf5a84b289c2c4e76f25c98a77e3888d1]: discretization-step
+| 0.006709845078411547d0 | 0.009194500187932775d0 | 0.011888432902217971d0 | 0.009614042128660572d0 |
+
+#+name: define-mad
+#+BEGIN_SRC lisp
+  (defun mad (data)
+    (let* ((v (copy-seq data))
+           (v-med (quantile v '(0.5))))
+      (* 1.4826 (quantile (map-into v #'(lambda (x) (abs (- x v-med))) v) '(0.5)))))
+#+END_SRC
+
+#+RESULTS: define-mad
+: MAD
+
