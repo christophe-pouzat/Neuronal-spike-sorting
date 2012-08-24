@@ -244,7 +244,7 @@ We can check next if some processing like a division by the /standard deviation/
 #+BEGIN_SRC lisp
   (defun diff (x &key (lag 1))
     (let* ((n (- (length x) lag))
-           (res (make-array n :element-type (type-of (aref x 0)))))
+           (res (make-array n)))
       (dotimes (i n res)
         (setf (aref res i) (- (aref x (+ i lag)) (aref x i))))))
 #+END_SRC
@@ -257,7 +257,7 @@ We can check next if some processing like a division by the /standard deviation/
    (defun unique (x)
      (let* ((sorted-x (sort (copy-seq x) #'<))
             (n (length x))
-            (res (make-array n :element-type (type-of (aref sorted-x 0))))
+            (res (make-array n))
             (j 0)
             (v (aref sorted-x 0)))
        (setf (aref res 0) v)
@@ -293,4 +293,42 @@ We then get the discretization step for each recording site:
 
 #+RESULTS: define-mad
 : MAD
+
+#+name: define-cst-value-segments
+#+BEGIN_SRC lisp
+  (defun locations (fn seq)
+    (let* ((n (length seq))
+           (res (make-array n))
+           (i 0))
+      (do ((j 0 (1+ j)))
+          ((> j (1- n)) (subseq res 0 i))
+        (cond ((funcall fn (aref seq j)) 
+               (setf (aref res i) j)
+               (setf i (1+ i)))))))
+      
+  
+  (defun cst-value-segments (data)
+    (let* ((dx (diff data :lag 2))
+           (null-derivative (make-array (length dx))))
+      (setf null-derivative (map-into null-derivative 
+                                      #'(lambda (x) (if (<= (abs x) (* 2 least-positive-double-float)) 1 0)) 
+                                      dx))
+      (let* ((ddx (diff null-derivative))
+             (rise (locations #'(lambda (x) (= x 1)) ddx))
+             (fall (locations #'(lambda (x) (= x -1)) ddx)))
+        (if (< (aref fall 0) (aref rise 0)) (setf fall (subseq fall 1)))
+        (if (> (aref rise (1- (length rise))) (aref fall (1- (length fall)))) (setf rise (subseq rise 0 (1- (length rise)))))
+        (setf fall (map-into fall #'- fall rise))
+        (let* ((good (locations #'(lambda (x) (< 1 x)) fall))
+               (ngood (length good))
+               (res1 (make-array ngood))
+               (res2 (make-array ngood)))
+          (dotimes (i ngood (list res1 res2)) 
+            (setf (aref res1 i) (aref rise (aref good i)))
+            (setf (aref res2 i) (aref fall (aref good i))))))))
+  
+#+END_SRC
+
+#+RESULTS: define-cst-value-segments
+: CST-VALUE-SEGMENTS
 
