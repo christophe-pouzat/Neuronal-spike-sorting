@@ -294,6 +294,9 @@ We then get the discretization step for each recording site:
 #+RESULTS: define-mad
 : MAD
 
+** Detecting saturation
+
+Before embarking into a comprehensive analysis of data that we did not record ourselves (of that we recorded so long ago that we do not remember any "remarkable" event concerning them), it can be wise to check that no amplifier or A/D card saturation occurred. We can quickly check for that by looking at the length of the longuest segment of constant value. When saturation occurs the recorded value stays for many sampling points at the same upper or lower saturating level. 
 #+name: define-cst-value-segments
 #+BEGIN_SRC lisp
   (defun locations (fn seq)
@@ -331,4 +334,29 @@ We then get the discretization step for each recording site:
 
 #+RESULTS: define-cst-value-segments
 : CST-VALUE-SEGMENTS
+
+Applying =cst-value-segments= to our raw data gives:
+#+name: *null-derivative-segments*
+#+BEGIN_SRC lisp :exports both :cache yes
+  (defparameter *null-derivative-segments* (mapcar #'cst-value-segments *data-list*))
+  *null-derivative-segments*
+#+END_SRC
+
+#+RESULTS[3a4edaeb0c27be2a70135a3680dba50c07f989cd]: *null-derivative-segments*
+| (44176 109081 197331 277696 285801)                        | (2 2 2 2 2)         |
+| (18659 43301 50809 128646 164938 164983 229418 290611)     | (2 2 2 2 2 2 2 2)   |
+| (281 9577 50293 104499 119923 187802 213145 227251 272668) | (2 2 2 2 2 2 2 2 2) |
+| (91261 238258 252566 271809 275506)                        | (2 2 2 2 2)         |
+
+
+That is, the longest segment (in sampling points) over which the derivative of the trace is null on each recording siteis:
+#+name: longest-segment-null-derivative
+#+BEGIN_SRC lisp :exports both :cache yes
+  (mapcar #'(lambda (x) (reduce #'max x)) (mapcar #'cadr *null-derivative-segments*))
+#+END_SRC
+
+#+RESULTS[e819f64813dff08289dbd85facbd9278b13b8bd2]: longest-segment-null-derivative
+| 2 | 2 | 2 | 2 | 
+
+We see that for each recording site, the longest segment of constant value is two sampling points long, that is 2/15 ms. There is no ground to worry about saturation here.   
 
