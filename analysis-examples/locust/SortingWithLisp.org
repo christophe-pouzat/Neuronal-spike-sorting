@@ -144,23 +144,34 @@ We are going to compute the [[http://en.wikipedia.org/wiki/Five-number_summary][
 Define a function returning the quantile:
 #+name: define-quantile
 #+BEGIN_SRC lisp
-  (defun quantile (data prob)
+  (defun quantile (data prob &key (method 7))
+    (declare (type integer method)) 
     (mapcar #'(lambda (p) 
+                (declare (type real p))
                 (if (or (< p 0) (< 1 p))
                     (error "A probability p must satisfy 0 ≤ p ≤ 1!"))) 
                           prob)
     (let* ((v (sort (copy-seq data) #'<))
            (n (length data)))
       (labels ((qtl (p) 
-                 (let* ((k (* n p))
-                        (floor-k (floor k)))
-                   (cond ((= p 0) (aref v 0))
-                         ((= p 1) (aref v (1- n)))
-                         (t (if (= k floor-k)
-                                (/ (+ (aref v floor-k)
-                                      (aref v (1- floor-k)))
-                                   2)
-                                (aref v floor-k)))))))
+                 (declare (type real p))
+                 (cond ((or (= p 0) (= p 1)) (if (= p 0) (aref v 0) (aref v (1- n))))
+                       (t (let* ((m (cond ((or (= method 1) (= method 2)) 0d0)
+                                          ((= method 3) -0.5d0)
+                                          ((= method 4) 0d0)
+                                          ((= method 5) 0.5d0)
+                                          ((= method 6) p)
+                                          ((= method 7) (- 1 p))
+                                          ((= method 8) (/ (1+ p) 3.0d0))
+                                          ((= method 9) (+ (/ p 4) 0.375d0))))                           
+                                 (k (+ (* n p) m))
+                                 (j (floor k))
+                                 (g (- k j))
+                                 (gamma (cond ((= method 1) (if (= g 0) 0d0 1.0d0))
+                                              ((= method 2) (if (= g 0) 0.5d0 1.0d0))
+                                              ((= method 3) (if (and (= g 0) (evenp j)) 0d0 1.0d0))
+                                              (t g))))
+                            (+ (* (- 1 gamma) (aref v j)) (* gamma (aref v (1+ j)))))))))
         (if (= (length prob) 1)
             (qtl (car prob))
             (mapcar #'qtl prob)))))
@@ -183,6 +194,7 @@ We use it keeping two decimals for the display:
 | -8.23 | -0.45 | -0.04 |  0.4 | 11.74 |
 | -6.89 | -0.53 | -0.04 | 0.47 |  9.85 |
 | -7.35 | -0.49 | -0.04 | 0.43 | 10.56 |
+
 
 We see that the data range (=maximum= - =minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar. 
 
@@ -283,17 +295,6 @@ We then get the discretization step for each recording site:
 #+RESULTS[a83fadeaf5a84b289c2c4e76f25c98a77e3888d1]: discretization-step
 | 0.006709845078411547d0 | 0.009194500187932775d0 | 0.011888432902217971d0 | 0.009614042128660572d0 |
 
-#+name: define-mad
-#+BEGIN_SRC lisp
-  (defun mad (data)
-    (let* ((v (copy-seq data))
-           (v-med (quantile v '(0.5))))
-      (* 1.4826 (quantile (map-into v #'(lambda (x) (abs (- x v-med))) v) '(0.5)))))
-#+END_SRC
-
-#+RESULTS: define-mad
-: MAD
-
 ** Detecting saturation
 
 Before embarking into a comprehensive analysis of data that we did not record ourselves (of that we recorded so long ago that we do not remember any "remarkable" event concerning them), it can be wise to check that no amplifier or A/D card saturation occurred. We can quickly check for that by looking at the length of the longuest segment of constant value. When saturation occurs the recorded value stays for many sampling points at the same upper or lower saturating level. 
@@ -359,4 +360,174 @@ That is, the longest segment (in sampling points) over which the derivative of t
 | 2 | 2 | 2 | 2 | 
 
 We see that for each recording site, the longest segment of constant value is two sampling points long, that is 2/15 ms. There is no ground to worry about saturation here.   
+
+** Plotting the data
+
+#+CAPTION: The first 200 ms of data on each of the four recording sites.
+#+LABEL: fig:first-200ms-raw-data
+#+ATTR_LaTeX: width=0.8\textwidth
+#+name: plot-first-200ms-raw-data-set 
+#+BEGIN_SRC sh :cache yes :file first-200ms-raw-data.png :exports both
+  graph -T png -I d -a 0.0666667 0 -g 0 -w 3.5 -h 0.8 -x 0 200 --reposition 0 0.75 0.25 Locust_1.dat --reposition 0 0.5 0.25 Locust_2.dat --reposition 0 0.25 0.25 Locust_3.dat --reposition 0 0.0 0.25 Locust_4.dat > first-200ms-raw-data.png
+#+END_SRC
+
+#+RESULTS[4e83ccf1807eff7cf8977a809d34f08ef5e83760]: plot-first-200ms-raw-data-set
+[[file:first-200ms-raw-data.png]]
+
+* Data renormalization
+
+We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][median absolute deviation]] (=MAD=) based renormalization. The goal of the procedure is to scale the raw data such that the noise SD is approximately 1. Since it is not straightforward to obtain a noise SD on data where both signal (i.e., spikes) and noise are present, we use this [[http://en.wikipedia.org/wiki/Robust_statistics][robust]] type of statistic for the SD. We start by defining a function returning the =MAD=:
+#+name: define-mad
+#+BEGIN_SRC lisp
+  (defun mad (data)
+    (let* ((v (copy-seq data))
+           (v-med (quantile v '(0.5))))
+      (* 1.4826 (quantile (map-into v #'(lambda (x) (abs (- x v-med))) v) '(0.5)))))
+#+END_SRC
+
+#+RESULTS: define-mad
+: MAD
+
+We then get the =MAD= on each recording site:
+#+name: MAD-of-each-site
+#+BEGIN_SRC lisp :exports both :cache yes
+  (defparameter *MAD-of-each-site* (mapcar #'mad *data-list*))
+  (mapcar #'(lambda (x) (float (/ (round x 0.001) 1000))) *MAD-of-each-site*)
+#+END_SRC
+
+#+RESULTS[b2ed39a61c76799b7a8df31746178b124c7b892e]: MAD-of-each-site
+| 0.517 | 0.627 | 0.74 | 0.684 | 
+
+We divide the amplitudes on each recording site by their =MAD=:
+#+name: normalize-each-site-to-its-MAD
+#+BEGIN_SRC lisp :exports code 
+  (setf *data-list* 
+        (mapcar #'(lambda (x d) (dotimes (i (length x) x) (setf (aref x i) (/ (aref x i) d)))) 
+                *data-list* 
+                *MAD-of-each-site*))
+#+END_SRC
+
+#+RESULTS: normalize-each-site-to-its-MAD
+|  0.7477831005064829d0 | -0.5752564896477936d0 |  -1.8853251034280087d0 |  -2.0280058435426853d0 | -0.7179372297624705d0 | -2.0020638907945623d0 |  -3.260248599078531d0 |  -1.4961958122061627d0 |  -1.5091667885802242d0 | -0.49743063140342453d0 |  0.04735037630715998d0 | -0.3936628204109322d0 | -0.7957630880068398d0 |   0.5661894312696214d0 | -0.004533529189086161d0 |   0.3197408801624522d0 |  0.8774928642470982d0 |   0.8774928642470982d0 | 0.09923428180340611d0 |  0.5532184548955599d0 | ... |
+| 0.22082671453655137d0 | -1.5240515855219874d0 | -0.18973288547722247d0 | -0.17507004261958767d0 | -1.9639368712510308d0 | -0.5416411140604572d0 | -0.5269782712028224d0 |  -0.9228750283589615d0 |   0.1181868145331079d0 |  -0.4683268997722833d0 | -0.35102415691120503d0 |  0.3674551431128992d0 | -0.5856296426333615d0 | 0.015546914529664436d0 |   -0.3363613140535702d0 | -0.17507004261958767d0 | -0.5416411140604572d0 |  0.39678082882816873d0 | -0.8935493426436918d0 |  0.5287464145468816d0 | ... |
+| 0.10372276258565667d0 |  0.8263914462833709d0 |   0.4249088442290852d0 |  -0.8116575700981146d0 | -0.8598354823446289d0 | -1.7430972068640576d0 | -1.0204285231663432d0 |  -0.5547087047833718d0 | -0.08898888640040045d0 |   1.0672810075159422d0 |  -0.8116575700981146d0 | -1.1489029558237147d0 | -0.7313610496872575d0 | -0.15322610272908616d0 |  -0.34593775171514324d0 | -0.37805635987948616d0 | -0.4583528802903432d0 | -0.18534471089342902d0 |  0.8263914462833709d0 |  0.3927902360647424d0 | ... |
+| -1.0559556316342296d0 | -1.9693285513077297d0 |  -1.0840594137780297d0 |  0.18061078269296998d0 | -0.8732810476995296d0 | -0.6906064637648297d0 | -0.6484507905491298d0 | -0.08637514767312993d0 | -0.21284216732022987d0 | -0.38146486018302983d0 |  -0.3955167512549298d0 | -0.6625026816210298d0 | -0.9013848298433298d0 |  -0.6625026816210298d0 |   -0.8592291566276297d0 |  0.20871456483676998d0 | -1.0137999584185298d0 | -0.24094594946402986d0 | -0.4517243155425298d0 | 0.06819565411777004d0 | ... |
+
+#+name: write-double-2-file
+#+BEGIN_SRC lisp
+  (defun write-double-2-file (data file-name)
+    (with-open-file (str  file-name :direction :output 
+                          :element-type '(unsigned-byte 64)
+                          :if-exists :overwrite
+                          :if-does-not-exist :create)
+      (let ((n (length data)))
+        (cond ((listp data)
+               (do* ((i 0 (1+ i))
+                     (x (ieee-floats:encode-float64 (nth i data))
+                        (ieee-floats:encode-float64 (nth i data))))
+                    ((>= i (1- n)) 'done)
+                 (write-byte x str)))
+              ((arrayp data)
+               (do* ((i 0 (1+ i))
+                     (x (ieee-floats:encode-float64 (aref data i))
+                        (ieee-floats:encode-float64 (aref data i))))
+                    ((>= i (1- n)) 'done)
+                 (write-byte x str)))))))
+#+END_SRC
+
+#+RESULTS: write-double-2-file
+: WRITE-DOUBLE-2-FILE
+
+#+name: define-window
+#+BEGIN_SRC lisp
+  (defun window (data &key (from 0) (to 200) (step 15))
+    (subseq data (* from step) (* to step)))
+#+END_SRC
+
+#+RESULTS: define-window
+: WINDOW
+
+#+BEGIN_SRC lisp
+  (write-double-2-file (window (nth 0 *data-list*) :from 0 :to 200) "tmp.dat")
+#+END_SRC
+
+#+RESULTS:
+: DONE
+
+#+CAPTION: The first 200 ms on the first recording site.
+#+LABEL: fig:first-200ms-site-one-normalization-comparison
+#+ATTR_LaTeX: width=0.8\textwidth
+#+name: plot-first-200ms-site-one-normalization-comparison
+#+BEGIN_SRC sh :cache yes :file first-200ms-site-one-normalization-comparison.png :exports both
+  graph -T png -I d -a -g 0 tmp.dat > first-200ms-site-one-normalization-comparison.png
+#+END_SRC
+
+#+RESULTS[b087aaa896effb45e4195b85683e881420c05f2d]: plot-first-200ms-site-one-normalization-comparison
+[[file:first-200ms-site-one-normalization-comparison.png]]
+
+
+#+name: map-int
+#+BEGIN_SRC lisp
+  (defun map-int (fn n)
+    (let ((acc nil))
+      (dotimes (i n)
+        (push (funcall fn i) acc))
+      (nreverse acc)))
+#+END_SRC
+
+#+RESULTS: map-int
+: MAP-INT
+
+#+name: *prob-seq*
+#+BEGIN_SRC lisp
+  (defparameter *prob-seq* (map-int #'(lambda (x) (* 0.01 (1+ x))) 99)) 
+#+END_SRC
+
+#+RESULTS: *prob-seq*
+: *PROB-SEQ*
+
+#+name: data-list-quantiles
+#+BEGIN_SRC lisp :cache yes
+  (defparameter *data-list-quantiles* 
+    (mapcar #'(lambda (seq) (quantile seq *prob-seq*)) *data-list*))
+  *data-list-quantiles*
+#+END_SRC
+
+#+RESULTS[3c86bef83e5526b04139adc57b54cf709acbad27]: data-list-quantiles
+|  -5.932269732135207d0 |  -3.558581055681947d0 |  -2.715467591367947d0 | -2.3133673237720394d0 |   -2.06691877266487d0 | -1.8853251034280087d0 | -1.7426443633133317d0 |  -1.625905575946778d0 | -1.5221377649542858d0 | -1.4313409303358549d0 |  -1.353515072091486d0 |  -1.288660190221178d0 | -1.2238053083508704d0 |  -1.171921402854624d0 |  -1.120037497358378d0 | -1.0681535918621319d0 | -1.0292406627399475d0 | -0.9773567572437013d0 | -0.9384438281215167d0 |  -0.899530898999332d0 | ... |
+|  -4.148700457038613d0 |  -3.210278514149987d0 |    -2.6677533284175d0 | -2.3158450998342652d0 |  -2.066576771254474d0 |  -1.875959814105222d0 |  -1.729331385528874d0 | -1.6120286426677959d0 | -1.5093887426643526d0 | -1.4360745283761789d0 |  -1.362760314088005d0 |  -1.289446099799831d0 |  -1.230794728369292d0 | -1.1721433569387525d0 | -1.1281548283658482d0 | -1.0695034569353092d0 |  -1.025514928362405d0 | -0.9815263997895005d0 | -0.9375378712165963d0 | -0.8935493426436918d0 | ... |
+|  -3.316909006916857d0 |    -2.5621217150548d0 | -2.2248763293292004d0 | -2.0000460721788005d0 | -1.8233937272749148d0 | -1.6949192946175433d0 | -1.5825041660423433d0 | -1.5022076456314861d0 | -1.4219111252206291d0 | -1.3576739088919434d0 | -1.2934366925632577d0 | -1.2452587803167432d0 | -1.1810215639880575d0 | -1.1328436517415432d0 |  -1.084665739495029d0 | -1.0364878272485147d0 | -1.0043692190841718d0 | -0.9561913068376575d0 | -0.9240726986733147d0 | -0.8758947864268003d0 | ... |
+| -3.8944376281580286d0 | -2.9529609263407295d0 | -2.4611447388242293d0 | -2.1660550263143294d0 | -1.9552766602358294d0 | -1.8007058584449296d0 | -1.6882907298697296d0 | -1.5758756012945292d0 | -1.4915642548631294d0 | -1.4072529084317296d0 | -1.3369934530722296d0 | -1.2807858887846297d0 | -1.2245783244970296d0 | -1.1683707602094295d0 | -1.1121631959218297d0 | -1.0700075227061296d0 | -1.0278518494904296d0 | -0.9856961762747297d0 | -0.9435405030590298d0 | -0.9013848298433298d0 | ... |
+
+
+#+BEGIN_SRC lisp
+  (ql:quickload "gsll")
+#+END_SRC
+
+#+name: *QN*
+#+BEGIN_SRC lisp
+  (defparameter *QN* (mapcar #'gsll::ugaussian-pinv *prob-seq*))
+  *QN* 
+#+END_SRC
+
+#+RESULTS: *QN*
+| -2.3263478740408408 | -2.0537489106318225 | -1.8807936081512509 | -1.7506860712521695 | -1.6448536269514726 | -1.554773594596853 | -1.4757910281791702 | -1.4050715603096324 | -1.3407550336902165 | -1.2815515655446006 | -1.2265281200366105 | -1.17498679206609 | -1.1263911290388005 | -1.080319340814956 | -1.0364333894937894 | -0.9944578832097529 | -0.9541652531461944 | -0.915365087842814 | -0.8778962950512285 | -0.8416212335729142 | ... |
+
+#+BEGIN_SRC lisp
+  (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                               (copy-seq (nth 0 *data-list-quantiles*)))
+                       "quant-channel-1-MAD-norm.dat")
+  (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                               (copy-seq (nth 1 *data-list-quantiles*)))
+                       "quant-channel-2-MAD-norm.dat")
+  (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                               (copy-seq (nth 2 *data-list-quantiles*)))
+                       "quant-channel-3-MAD-norm.dat")
+  (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                               (copy-seq (nth 3 *data-list-quantiles*)))
+                       "quant-channel-4-MAD-norm.dat")
+#+END_SRC
+
+#+RESULTS:
+: DONE
 
