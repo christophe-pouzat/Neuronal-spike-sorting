@@ -480,7 +480,7 @@ We divide the amplitudes on each recording site by their =MAD=:
 
 #+name: *prob-seq*
 #+BEGIN_SRC lisp
-  (defparameter *prob-seq* (map-int #'(lambda (x) (* 0.01 (1+ x))) 99)) 
+  (defparameter *prob-seq* (map-int #'(lambda (x) (* 0.01d0 (1+ x))) 99)) 
 #+END_SRC
 
 #+RESULTS: *prob-seq*
@@ -504,30 +504,62 @@ We divide the amplitudes on each recording site by their =MAD=:
   (ql:quickload "gsll")
 #+END_SRC
 
+#+RESULTS:
+| gsll |
+
 #+name: *QN*
 #+BEGIN_SRC lisp
   (defparameter *QN* (mapcar #'gsll::ugaussian-pinv *prob-seq*))
-  *QN* 
+  *QN*
 #+END_SRC
 
 #+RESULTS: *QN*
 | -2.3263478740408408 | -2.0537489106318225 | -1.8807936081512509 | -1.7506860712521695 | -1.6448536269514726 | -1.554773594596853 | -1.4757910281791702 | -1.4050715603096324 | -1.3407550336902165 | -1.2815515655446006 | -1.2265281200366105 | -1.17498679206609 | -1.1263911290388005 | -1.080319340814956 | -1.0364333894937894 | -0.9944578832097529 | -0.9541652531461944 | -0.915365087842814 | -0.8778962950512285 | -0.8416212335729142 | ... |
 
+#+name: define-filter4v
 #+BEGIN_SRC lisp
-  (write-double-2-file (mapcan #'list (copy-seq *QN*)
-                               (copy-seq (nth 0 *data-list-quantiles*)))
-                       "quant-channel-1-MAD-norm.dat")
-  (write-double-2-file (mapcan #'list (copy-seq *QN*)
-                               (copy-seq (nth 1 *data-list-quantiles*)))
-                       "quant-channel-2-MAD-norm.dat")
-  (write-double-2-file (mapcan #'list (copy-seq *QN*)
-                               (copy-seq (nth 2 *data-list-quantiles*)))
-                       "quant-channel-3-MAD-norm.dat")
-  (write-double-2-file (mapcan #'list (copy-seq *QN*)
-                               (copy-seq (nth 3 *data-list-quantiles*)))
-                       "quant-channel-4-MAD-norm.dat")
+  (defmacro filter4s (proseq fn &rest proseqs)
+    `(let ((res (copy-seq ,proseq)))
+      (map-into res ,fn res ,@proseqs)))
+#+END_SRC
+
+#+RESULTS: define-filter4v
+: FILTER4S
+
+#+BEGIN_SRC lisp
+  (let ((theSD (mapcar #'sd *data-list*))
+        (currentSD nil)
+        (prefix "quant-channel-")
+        (suffix "-norm.dat")
+        (file-name nil))
+    (do ((i 0 (1+ i)))  
+        ((> i 3) 'done)
+      (setf currentSD (nth i theSD))
+      (print currentSD)
+      (setf file-name (concatenate 'string prefix (princ-to-string (1+ i)) "-MAD" suffix))
+      (print file-name)
+      (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                                   (copy-seq (nth i *data-list-quantiles*)))
+                           file-name)
+      (setf file-name (concatenate 'string prefix (princ-to-string (1+ i)) "-SD" suffix))
+      (print file-name)
+      (write-double-2-file (mapcan #'list (copy-seq *QN*)
+                                   (quantile (filter4s (nth i *data-list*) 
+                                                       #'(lambda (x) (/ x currentSD)))
+                                             *prob-seq*))
+                                   file-name)
+      ))
 #+END_SRC
 
 #+RESULTS:
 : DONE
+
+#+name: test-fig
+#+BEGIN_SRC gnuplot :file test-fig.png :exports results
+  unset key
+  plot 'quant-channel-1-MAD-norm.dat' binary format='%float64' with lines lc rgb "black"
+#+END_SRC
+
+#+RESULTS: test-fig
+[[file:test-fig.png]]
 
