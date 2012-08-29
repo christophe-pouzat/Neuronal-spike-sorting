@@ -141,6 +141,39 @@ We can now proceed:
 ** Five-number summary
 We are going to compute the [[http://en.wikipedia.org/wiki/Five-number_summary][five-number summary]] of each of our four traces.
 
+We start by defining a utility macro =while= and a utility function =quicksort=:
+#+name: define-while
+#+BEGIN_SRC lisp
+  (defmacro while (test &rest body)
+    `(do ()
+         ((not ,test))
+       ,@body))
+#+END_SRC
+
+#+RESULTS: define-while
+: WHILE
+
+#+name: define-quicksort
+#+BEGIN_SRC lisp
+  (defun quicksort (vec l r)
+    (let ((i l) 
+          (j r) 
+          (p (aref vec (round (+ l r) 2))))
+      (while (<= i j)                           
+        (while (< (aref vec i) p) (incf i))
+        (while (> (aref vec j) p) (decf j))
+        (when (<= i j)
+          (rotatef (aref vec i) (aref vec j))
+          (incf i)
+          (decf j)))
+      (if (> (- j l) 1) (quicksort vec l j))   
+      (if (> (- r i) 1) (quicksort vec i r)))
+    vec)
+#+END_SRC
+
+#+RESULTS: define-quicksort
+: QUICKSORT
+
 Define a function returning the quantile:
 #+name: define-quantile
 #+BEGIN_SRC lisp
@@ -151,7 +184,7 @@ Define a function returning the quantile:
                 (if (or (< p 0) (< 1 p))
                     (error "A probability p must satisfy 0 ≤ p ≤ 1!"))) 
                           prob)
-    (let* ((v (sort (copy-seq data) #'<))
+    (let* ((v (quicksort (copy-seq data) 0 (1- (length data))))
            (n (length data)))
       (labels ((qtl (p) 
                  (declare (type real p))
@@ -267,7 +300,7 @@ We can check next if some processing like a division by the /standard deviation/
 #+name: define-unique
 #+BEGIN_SRC lisp
    (defun unique (x)
-     (let* ((sorted-x (sort (copy-seq x) #'<))
+     (let* ((sorted-x (quicksort (copy-seq x) 0 (1- (length x))))
             (n (length x))
             (res (make-array n))
             (j 0)
@@ -562,4 +595,115 @@ We divide the amplitudes on each recording site by their =MAD=:
 
 #+RESULTS: test-fig
 [[file:test-fig.png]]
+
+* Spike detection
+
+We are going to filter the data slightly using a "box" filter of length 3. That is, the data points of the original trace are going to be replaced by the average of themselves with their two nearest neighbors. We will then scale the filtered traces such that the =MAD= is one on each recording sites and keep only the parts of the signal which above 4: 
+#+name: box-filter-data
+#+BEGIN_SRC lisp
+  (defparameter *derived-data-list* 
+    (mapcar #'(lambda (vec)
+                (let ((fvec (make-array (length vec) :element-type 'double-float :initial-element 0d0))
+                      (l (aref vec 0))
+                      (m (aref vec 1))
+                      (r 0d0))
+                  (declare (type double-float l m r))
+                  (do ((i 1 (1+ i)))
+                      ((> i (- (length vec) 2)))
+                    (setf r (aref vec (1+ i)))
+                    (setf (aref fvec i) (/ (+ l m r) 3.0d0))
+                    (setf l m 
+                          m r))
+                  fvec))
+            *data-list*))
+#+END_SRC
+
+#+RESULTS: box-filter-data
+: *DERIVED-DATA-LIST*
+
+#+name: MAD-of-*DERIVED-DATA-LIST*
+#+BEGIN_SRC lisp
+ (defparameter *MAD-of-each-derived-site* (mapcar #'mad *derived-data-list*))
+#+END_SRC
+
+#+RESULTS: MAD-of-*DERIVED-DATA-LIST*
+: *MAD-OF-EACH-DERIVED-SITE*
+
+#+name: normalize-each-derived-site-to-its-MAD
+#+BEGIN_SRC lisp
+  (setf *derived-data-list* 
+          (mapcar #'(lambda (x d) (dotimes (i (length x) x) (setf (aref x i) (/ (aref x i) d)))) 
+                  *derived-data-list* 
+                  *MAD-of-each-derived-site*))
+#+END_SRC
+
+#+RESULTS: normalize-each-derived-site-to-its-MAD
+| 0.0 | -0.7241099318179236 | -1.8976142008468406 | -1.9579345137408501 | -2.0072874970177668 | -2.5282356538296695 | -2.8572555423424495 | -2.6488762796176886 |  -1.4808556753973188 |  -0.8282995631803043 |  -0.3567043896453189 |  -0.4828286802418848 |  -0.2634820879000312 | -0.09897214364364096 |   0.3726230298913443 |   0.5042309852964564 |   0.8771201922776076 |   0.7838978905323198 |   0.6468062703186613 | 0.29585172257169556 | ... |
+| 0.0 | -0.6540576837836407 | -0.8274981678710921 | -1.0202098168571492 | -1.1743791360459948 | -1.3285484552348406 | -0.8724642193011721 | -0.5833967458220864 |  -0.5577018592906122 | -0.30717671560873805 |  -0.1979734478499723 | -0.24936322091292087 | -0.08877018009120667 | -0.39710881846889795 | -0.21724461274857806 | -0.46134603479758357 | -0.14015995315415528 | -0.45492231316471504 | 0.014009366034690426 | -0.2300920560143152 | ... |
+| 0.0 |  0.6119458949475347 |  0.1985483253484123 | -0.5629735133868132 | -1.5420730203321034 | -1.6363566765564646 | -1.4985574866900906 | -0.7515408258355357 |  0.19129573640807673 |  0.07525431336270903 | -0.40341655669943277 |  -1.2157065180170068 |  -0.9183503714632519 |  -0.5557209244464778 |  -0.3961639677590973 |  -0.5339631576254713 | -0.46143726822211656 |  0.08250690230304454 |  0.46689411614082504 |  0.4306311714391477 | ... |
+| 0.0 | -1.7611472557371384 | -1.2311902210254813 |  -0.761455576621967 |  -0.592832883759167 | -0.9481449865772098 | -0.6108996008516099 | -0.4061434738039242 | -0.29172093221845274 |   -0.424210190896367 |  -0.6169218398824241 |  -0.8397446840225526 |   -0.954167225608024 |   -1.038478572039424 |  -0.5627216886050955 |  -0.7132776643754528 |  -0.4482991470196242 |  -0.7313443814678956 |  -0.2676319760951956 |  1.1355497180845329 | ... |
+
+We now rectify the "derived and normalized" traces:
+#+name: rectify-derived-normalized-traces
+#+BEGIN_SRC lisp
+  (setf *derived-data-list* 
+            (mapcar #'(lambda (x thres) (dotimes (i (length x) x) (if (< (aref x i) thres) (setf (aref x i) 0d0)))) 
+                    *derived-data-list* 
+                    '(4.0d0 4.0d0 4.0d0 4.0d0)))
+#+END_SRC
+
+#+RESULTS: rectify-derived-normalized-traces
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+
+Create a vector containing the element-wise sum of the four rectified channels:
+#+name: trace-for-detection
+#+BEGIN_SRC lisp
+  (defparameter *trace-for-detection* (copy-seq (car *derived-data-list*)))
+  (setf *trace-for-detection* (map-into *trace-for-detection* 
+                                        #'+ 
+                                        (nth 0 *derived-data-list*)
+                                        (nth 1 *derived-data-list*)
+                                        (nth 2 *derived-data-list*)
+                                        (nth 3 *derived-data-list*)))
+#+END_SRC
+
+#+RESULTS: trace-for-detection
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+
+Define a function detecting =peaks=, that is, local maxima:
+#+name: define-peaks
+#+BEGIN_SRC lisp
+  (defun peaks (vec &key (min-diff 15))
+    (let ((pos nil)
+          (amp nil)
+          (current-amp 0d0)
+          (max-pos 0)
+          (max-amp 0d0)
+          (in-it nil))
+      (dotimes (i (1- (length vec)))
+        (setf current-amp (aref vec i))
+        (cond ((and (not in-it) (> current-amp 0d0))
+               (setf in-it t
+                     max-pos i
+                     max-amp current-amp))
+              ((and in-it (= current-amp 0d0))
+               (setf in-it nil)
+               (cond ((> (length pos) 0)
+                      (cond ((<= (- max-pos (car pos)) min-diff)
+                             (pop pos)
+                             (pop amp)))))
+               (push max-pos pos)
+               (push max-amp amp))
+              ((and in-it (> current-amp 0d0))
+               (if (> current-amp max-amp) (setf max-pos i
+                                                 max-amp current-amp)))))
+      (list (nreverse pos)
+            (nreverse amp))))               
+#+END_SRC
+
+#+RESULTS: define-peaks
+: PEAKS
 
