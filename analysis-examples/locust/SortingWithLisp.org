@@ -178,33 +178,34 @@ Define a function returning the quantile:
 #+name: define-quantile
 #+BEGIN_SRC lisp
   (defun quantile (data prob &key (method 7))
-    (declare (type integer method)) 
+    (declare (integer method))
+    (declare ((simple-array double-float) data))
     (mapcar #'(lambda (p) 
-                (declare (type real p))
-                (if (or (< p 0) (< 1 p))
+                ;;(declare (double-float p))
+                (if (or (< p 0d0) (< 1.0d0 p))
                     (error "A probability p must satisfy 0 ≤ p ≤ 1!"))) 
-                          prob)
+            prob)
     (let* ((v (quicksort (copy-seq data) 0 (1- (length data))))
            (n (length data)))
       (labels ((qtl (p) 
-                 (declare (type real p))
-                 (cond ((or (= p 0) (= p 1)) (if (= p 0) (aref v 0) (aref v (1- n))))
+                 ;;(declare (double-float p))
+                 (cond ((or (= p 0d0) (= p 1.0d0)) (if (= p 0d0) (aref v 0) (aref v (1- n))))
                        (t (let* ((m (cond ((or (= method 1) (= method 2)) 0d0)
                                           ((= method 3) -0.5d0)
                                           ((= method 4) 0d0)
                                           ((= method 5) 0.5d0)
                                           ((= method 6) p)
-                                          ((= method 7) (- 1 p))
-                                          ((= method 8) (/ (1+ p) 3.0d0))
-                                          ((= method 9) (+ (/ p 4) 0.375d0))))                           
+                                          ((= method 7) (- 1.0d0 p))
+                                          ((= method 8) (/ (incf p) 3.0d0))
+                                          ((= method 9) (+ (/ p 4.0d0) 0.375d0))))                           
                                  (k (+ (* n p) m))
                                  (j (floor k))
                                  (g (- k j))
-                                 (gamma (cond ((= method 1) (if (= g 0) 0d0 1.0d0))
-                                              ((= method 2) (if (= g 0) 0.5d0 1.0d0))
-                                              ((= method 3) (if (and (= g 0) (evenp j)) 0d0 1.0d0))
+                                 (gamma (cond ((= method 1) (if (= g 0d0) 0d0 1.0d0))
+                                              ((= method 2) (if (= g 0d0) 0.5d0 1.0d0))
+                                              ((= method 3) (if (and (= g 0d0) (evenp j)) 0d0 1.0d0))
                                               (t g))))
-                            (+ (* (- 1 gamma) (aref v j)) (* gamma (aref v (1+ j)))))))))
+                            (+ (* (- 1.0d0 gamma) (aref v j)) (* gamma (aref v (1+ j)))))))))
         (if (= (length prob) 1)
             (qtl (car prob))
             (mapcar #'qtl prob)))))
@@ -218,7 +219,7 @@ We use it keeping two decimals for the display:
 #+BEGIN_SRC lisp :exports both :cache yes
   (mapcar #'(lambda (d) (mapcar #'(lambda (x) 
                                     (float (/ (round x 0.01) 100))) 
-                                (quantile d '(0 0.25 0.5 0.75 1)))) 
+                                (quantile d '(0d0 0.25d0 0.5d0 0.75d0 1d0)))) 
           *data-list*)
 #+END_SRC
 
@@ -700,10 +701,57 @@ Define a function detecting =peaks=, that is, local maxima:
               ((and in-it (> current-amp 0d0))
                (if (> current-amp max-amp) (setf max-pos i
                                                  max-amp current-amp)))))
-      (list (nreverse pos)
-            (nreverse amp))))               
+      (coerce (nreverse pos) 'vector)))               
 #+END_SRC
 
 #+RESULTS: define-peaks
 : PEAKS
+
+Use it:
+#+name: *sp-1*
+#+BEGIN_SRC lisp
+  (defparameter *sp-1* (peaks *trace-for-detection*))
+  (defparameter *sp-1-e* (remove-if #'(lambda (pos) (>= pos 150000)) *sp-1*))
+  (defparameter *sp-1-l* (remove-if #'(lambda (pos) (< pos 150000)) *sp-1*))
+#+END_SRC
+
+#+RESULTS: *sp-1*
+: *SP-1-L*
+
+
+The =mean=, =sd=, minimal and maximal values of the inter-events intervals of =*sp-1*= are (in sampling points):
+#+BEGIN_SRC lisp :exports both
+(let ((isi (diff *sp-1*))) (list (float (mean isi)) (sd isi) (reduce #'min isi) (reduce #'max isi)))
+#+END_SRC 
+
+#+RESULTS:
+| 173.27242f0 | 150.02945f0 | 16 | 1449 |
+
+* Cuts
+
+We define first the =make-events= function:
+#+name: define-make-events
+#+BEGIN_SRC lisp
+  (defun mk-evts (pos data from to)
+    (let ((nb-evts (length pos))
+          (nb-samp (length (car data)))
+          (nb-sites (length data))
+          (cut-length (+ from to 1))
+          (working-pos (copy-seq pos)))
+      (setf working-pos (remove-if #'(lambda (i) 
+                                       (or (<= i from)) (>= i (- nb-samp to)))  
+                                   working-pos))
+      (setf nb-evts (length working-pos))
+      (let* ((res-dim (list nb-evts nb-sites (+ from to 1)))
+             (res (make-array res-dim :element-type 'double-float :initial-element 0d0)))
+        (do* ((i 0 (1+ i))
+              (offset (- (aref working-pos i) from) (- (aref working-pos i) from)))
+             ((> i (1- nb-evts)))
+          (do ((j 0 (1+ j)))
+              ((> j (1- nb-sites)))
+            (do ((k 0 (1+ k)))
+                ((> k (1- cut-length)))
+              (setf (aref res i j k) (aref (nth j data) (+ k offset))))))
+        res)))
+#+END_SRC
 
