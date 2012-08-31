@@ -156,6 +156,7 @@ We start by defining a utility macro =while= and a utility function =quicksort=:
 #+name: define-quicksort
 #+BEGIN_SRC lisp
   (defun quicksort (vec l r)
+    (declare (optimize (speed 3)))
     (let ((i l) 
           (j r) 
           (p (aref vec (round (+ l r) 2))))
@@ -178,6 +179,7 @@ Define a function returning the quantile:
 #+name: define-quantile
 #+BEGIN_SRC lisp
   (defun quantile (data prob &key (method 7))
+    (declare (optimize (speed 3)))
     (declare (integer method))
     (declare ((simple-array double-float) data))
     (mapcar #'(lambda (p) 
@@ -300,20 +302,21 @@ We can check next if some processing like a division by the /standard deviation/
 
 #+name: define-unique
 #+BEGIN_SRC lisp
-   (defun unique (x)
-     (let* ((sorted-x (quicksort (copy-seq x) 0 (1- (length x))))
-            (n (length x))
-            (res (make-array n))
-            (j 0)
-            (v (aref sorted-x 0)))
-       (setf (aref res 0) v)
-       (do* ((i 1 (1+ i)))
-            ((> i (1- n)))
-         (setf v (aref sorted-x i))
-         (cond ((> v (aref res j))
-                (setf j (1+ j))
-                (setf (aref res j) v))))
-       (subseq res 0 (1+ j))))
+  (defun unique (x)
+    (declare (optimize (speed 3)))
+    (let* ((sorted-x (quicksort (copy-seq x) 0 (1- (length x))))
+           (n (length x))
+           (res (make-array n))
+           (j 0)
+           (v (aref sorted-x 0)))
+      (setf (aref res 0) v)
+      (do* ((i 1 (1+ i)))
+           ((> i (1- n)))
+        (setf v (aref sorted-x i))
+        (cond ((> v (aref res j))
+               (setf j (1+ j))
+               (setf (aref res j) v))))
+      (subseq res 0 (1+ j))))
 #+END_SRC
 
 #+RESULTS: define-unique
@@ -335,6 +338,7 @@ Before embarking into a comprehensive analysis of data that we did not record ou
 #+name: define-cst-value-segments
 #+BEGIN_SRC lisp
   (defun locations (fn seq)
+    (declare (optimize (speed 3)))
     (let* ((n (length seq))
            (res (make-array n))
            (i 0))
@@ -346,6 +350,7 @@ Before embarking into a comprehensive analysis of data that we did not record ou
       
   
   (defun cst-value-segments (data)
+    (declare (optimize (speed 3)))
     (let* ((dx (diff data :lag 2))
            (null-derivative (make-array (length dx))))
       (setf null-derivative (map-into null-derivative 
@@ -678,6 +683,7 @@ Define a function detecting =peaks=, that is, local maxima:
 #+name: define-peaks
 #+BEGIN_SRC lisp
   (defun peaks (vec &key (min-diff 15))
+    (declare (optimize (speed 3)))
     (let ((pos nil)
           (amp nil)
           (current-amp 0d0)
@@ -721,7 +727,7 @@ Use it:
 
 The =mean=, =sd=, minimal and maximal values of the inter-events intervals of =*sp-1*= are (in sampling points):
 #+BEGIN_SRC lisp :exports both
-(let ((isi (diff *sp-1*))) (list (float (mean isi)) (sd isi) (reduce #'min isi) (reduce #'max isi)))
+  (let ((isi (diff *sp-1*))) (list (float (mean isi)) (sd isi) (reduce #'min isi) (reduce #'max isi)))
 #+END_SRC 
 
 #+RESULTS:
@@ -729,29 +735,49 @@ The =mean=, =sd=, minimal and maximal values of the inter-events intervals of =*
 
 * Cuts
 
-We define first the =make-events= function:
+After detecting our spikes, we must make our cuts in order to create our events' sample. That is, for each detected event we literally cut a piece of data and we do that on the four recording sites. To this end we define function =mk-evts= which in addition to a =pos= argument and a "raw data" argument (=data=) takes an integer argument (=from=) stating how many sampling points we want to keep within the cut before the reference time as well as another integer argument (=to=) stating how many sampling points we want to keep within the cut after the reference time. The function returns essentially a 3D array whose first index corresponds to events, second to sites and third to position within the cut:
 #+name: define-make-events
 #+BEGIN_SRC lisp
   (defun mk-evts (pos data from to)
-    (let ((nb-evts (length pos))
-          (nb-samp (length (car data)))
-          (nb-sites (length data))
-          (cut-length (+ from to 1))
-          (working-pos (copy-seq pos)))
-      (setf working-pos (remove-if #'(lambda (i) 
-                                       (or (<= i from)) (>= i (- nb-samp to)))  
-                                   working-pos))
-      (setf nb-evts (length working-pos))
-      (let* ((res-dim (list nb-evts nb-sites (+ from to 1)))
-             (res (make-array res-dim :element-type 'double-float :initial-element 0d0)))
-        (do* ((i 0 (1+ i))
-              (offset (- (aref working-pos i) from) (- (aref working-pos i) from)))
-             ((> i (1- nb-evts)))
-          (do ((j 0 (1+ j)))
-              ((> j (1- nb-sites)))
-            (do ((k 0 (1+ k)))
-                ((> k (1- cut-length)))
-              (setf (aref res i j k) (aref (nth j data) (+ k offset))))))
-        res)))
+  (let ((nb-evts (length pos))
+	(nb-samp (length (car data)))
+	(nb-sites (length data))
+	(cut-length (+ from to 1))
+	(working-pos (copy-seq pos)))
+    (setf working-pos (remove-if #'(lambda (i) 
+				     (or (< i from)) (>= i (- nb-samp to)))  
+				 working-pos))
+    (setf nb-evts (length working-pos))
+    (let* ((res-dim (list nb-evts nb-sites cut-length))
+	   (res (make-array res-dim :element-type 'double-float :initial-element 0d0))
+	   (offset 0))
+      (do* ((evt-idx 0 (1+ evt-idx)))
+	   ((> evt-idx (1- nb-evts)))
+	(setf offset (- (aref working-pos evt-idx) from))
+	(do ((site-idx 0 (1+ site-idx)))
+	    ((> site-idx (1- nb-sites)))
+	  (do ((within-cut-idx 0 (1+ within-cut-idx)))
+	      ((> within-cut-idx (1- cut-length)))
+	    (setf (aref res evt-idx site-idx within-cut-idx)
+		  (aref (nth site-idx data)
+			(+ within-cut-idx offset))))))
+      res)))
 #+END_SRC
+
+** Getting the "right" length for the cuts
+The obvious question we must first address is: How long should our cuts be? The pragmatic way to get an answer is:
+- Make cuts much longer than what we think is necessary, like 50 sampling points on both sides of the detected event's time.
+- Compute robust estimates of the "central" event (with the median) and of the dispersion of the sample around this central event (with the MAD).
+- Plot the two together and check when does the MAD trace reach the background noise level (at 1 since we have normalized the data).
+- Having the central event allows us to see if it outlasts significantly the region where the MAD is above the background noise level.
+Clearly cutting beyond the time at which the MAD hits back the noise level should not bring any useful information as far a classifying the spikes is concerned. So here we perform this task as follows: 
+Create an events array corresponding to the first half of the data set:
+#+name: *evts-e*
+#+BEGIN_SRC lisp
+  (defparameter *evts-e* (mk-evts *sp-1-e* *data-list* 49 50))
+#+END_SRC
+
+#+RESULTS: *evts-e*
+: *EVTS-E*
+
 
