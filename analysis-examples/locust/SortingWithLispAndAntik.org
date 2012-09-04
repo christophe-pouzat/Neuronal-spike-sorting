@@ -117,10 +117,10 @@ We now define a function reading into our lisp session a file a floats in double
     (with-open-file (in name :direction :input
                         :element-type '(unsigned-byte 64))
       (let* ((len (file-length in))
-             (len-and-type (list (list 'grid:foreign-array len) 'double-float))
-             (res (grid:make-grid len-and-type :initial-element 0d0)))
+             (res (grid:make-foreign-array 'double-float :dimensions len :initial-element 0d0)))
+        (declare (type grid:vector-double-float res))
         (dotimes (i len res)
-          (setf (grid:aref res i) (ieee-floats:decode-float64 (read-byte in)))))))
+          (grid:gsetf (grid:aref res i) (ieee-floats:decode-float64 (read-byte in)))))))
 #+END_SRC
 
 #+RESULTS: define-read-double-to-grid
@@ -159,15 +159,15 @@ Define a function returning the quantiles:
 #+name: define-vquantile
 #+BEGIN_SRC lisp
   (defun vquantile (data prob)
+    (declare (optimize (speed 3)))
+    (declare (type grid:vector-double-float data))
     (mapcar #'(lambda (p) 
                 (if (or (< p 0d0) (< 1.0d0 p))
                     (error "A probability p must satisfy 0 ≤ p ≤ 1!"))) 
             prob)
     (let* ((len (car (grid:dimensions data)))
-           (len-and-type (list (list 'grid:foreign-array len) 'double-float))
-           (v (grid:make-grid len-and-type :initial-element 0d0)))
-      (dotimes (i len)
-        (setf (grid:aref v i) (grid:aref data i)))
+           (v (grid:slice data (list (list ':range 0 (1- len))))))
+      (declare (type grid:vector-double-float v))
       (setf v (gsll:sort-vector v))        
       (if (= (length prob) 1)
           (gsll:quantile v (car prob))
@@ -210,11 +210,15 @@ We can check next if some processing like a division by the /standard deviation/
 #+name: define-diff
 #+BEGIN_SRC lisp
   (defun diff (x &key (lag 1))
+    (declare (optimize (speed 3)))
+    (declare (type grid:vector-double-float x))
+    (declare (fixnum lag))
     (let* ((len (- (car (grid:dimensions x)) lag))
-           (len-and-type (list (list 'grid:foreign-array len) 'double-float))
-           (res (grid:make-grid len-and-type :initial-element 0d0)))
+           (res (grid:make-foreign-array 'double-float :dimensions len :initial-element 0d0)))
+      (declare (type grid:vector-double-float res))
+      (declare (fixnum len))
       (dotimes (i len res)
-        (setf (grid:aref res i) (- (grid:aref x (+ i lag)) (grid:aref x i))))))
+        (grid:gsetf (grid:aref res i) (- (grid:aref x (+ i lag)) (grid:aref x i))))))
 #+END_SRC
 
 #+RESULTS: define-diff
@@ -223,27 +227,26 @@ We can check next if some processing like a division by the /standard deviation/
 #+name: define-unique
 #+BEGIN_SRC lisp
   (defun unique (x)
+    (declare (optimize (speed 3)))
+    (declare (type grid:vector-double-float x))
     (let* ((len (car (grid:dimensions x)))
-           (len-and-type (list (list 'grid:foreign-array len) 'double-float))
-           (sorted-x (grid:make-grid len-and-type :initial-element 0d0))
-           (res (grid:make-grid len-and-type :initial-element 0d0))
+           (sorted-x (grid:slice x (list (list ':range 0 (1- len)))))
+           (res (grid:make-foreign-array 'double-float :dimensions len :initial-element 0d0))
            (j 0)
            (v 0d0))
-      (dotimes (i len)
-        (setf (grid:aref sorted-x i) (grid:aref x i)))
+      (declare (type grid:vector-double-float sorted-x res))
+      (declare (double-float v))
+      (declare (fixnum len j))
       (setf sorted-x (gsll:sort-vector sorted-x))
       (setf v (grid:aref sorted-x 0))
-      (setf (grid:aref res 0) v)
+      (grid:gsetf (grid:aref res 0) v)
       (do* ((i 1 (1+ i)))
            ((> i (1- len)))
         (setf v (grid:aref sorted-x i))
         (cond ((> v (grid:aref res j))
                (setf j (1+ j))
-               (setf (grid:aref res j) v))))
-      (setf len-and-type (list (list 'grid:foreign-array (1+ j)) 'double-float))
-      (let ((f-res (grid:make-grid len-and-type :initial-element 0d0)))
-        (dotimes (i (1+ j) f-res)
-          (setf (grid:aref f-res i) (grid:aref res i))))))
+               (grid:gsetf (grid:aref res j) v))))
+      (grid:slice res (list (list ':range 0 j)))))
 #+END_SRC
 
 #+RESULTS: define-unique
@@ -350,7 +353,10 @@ We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][
 #+name: define-mad
 #+BEGIN_SRC lisp
   (defun mad (data)
+    (declare (optimize (speed 3)))
+    (declare (type grid:vector-double-float data))
     (let ((med (vquantile data '(0.5))))
+      (declare (double-float med))
       (* 1.4826 (vquantile (funcall (grid:elementwise #'(lambda (x) (abs (- x med)))) data) '(0.5)))))
 #+END_SRC
 
@@ -466,7 +472,6 @@ We divide the amplitudes on each recording site by their =MAD=:
 
 #+RESULTS[b087aaa896effb45e4195b85683e881420c05f2d]: plot-first-200ms-site-one-normalization-comparison
 [[file:first-200ms-site-one-normalization-comparison.png]]
-
 
 #+name: map-int
 #+BEGIN_SRC lisp
@@ -587,60 +592,98 @@ We are going to filter the data slightly using a "box" filter of length 3. That 
 #+name: normalize-each-derived-site-to-its-MAD
 #+BEGIN_SRC lisp
   (setf *derived-data-list* 
-          (mapcar #'(lambda (x d) (dotimes (i (length x) x) (setf (aref x i) (/ (aref x i) d)))) 
+          (mapcar #'(lambda (v d) (funcall (grid:elementwise #'(lambda (x) (/ x d))) v)) 
                   *derived-data-list* 
                   *MAD-of-each-derived-site*))
 #+END_SRC
 
 #+RESULTS: normalize-each-derived-site-to-its-MAD
-| 0.0 | -0.7241099318179236 | -1.8976142008468406 | -1.9579345137408501 | -2.0072874970177668 | -2.5282356538296695 | -2.8572555423424495 | -2.6488762796176886 |  -1.4808556753973188 |  -0.8282995631803043 |  -0.3567043896453189 |  -0.4828286802418848 |  -0.2634820879000312 | -0.09897214364364096 |   0.3726230298913443 |   0.5042309852964564 |   0.8771201922776076 |   0.7838978905323198 |   0.6468062703186613 | 0.29585172257169556 | ... |
-| 0.0 | -0.6540576837836407 | -0.8274981678710921 | -1.0202098168571492 | -1.1743791360459948 | -1.3285484552348406 | -0.8724642193011721 | -0.5833967458220864 |  -0.5577018592906122 | -0.30717671560873805 |  -0.1979734478499723 | -0.24936322091292087 | -0.08877018009120667 | -0.39710881846889795 | -0.21724461274857806 | -0.46134603479758357 | -0.14015995315415528 | -0.45492231316471504 | 0.014009366034690426 | -0.2300920560143152 | ... |
-| 0.0 |  0.6119458949475347 |  0.1985483253484123 | -0.5629735133868132 | -1.5420730203321034 | -1.6363566765564646 | -1.4985574866900906 | -0.7515408258355357 |  0.19129573640807673 |  0.07525431336270903 | -0.40341655669943277 |  -1.2157065180170068 |  -0.9183503714632519 |  -0.5557209244464778 |  -0.3961639677590973 |  -0.5339631576254713 | -0.46143726822211656 |  0.08250690230304454 |  0.46689411614082504 |  0.4306311714391477 | ... |
-| 0.0 | -1.7611472557371384 | -1.2311902210254813 |  -0.761455576621967 |  -0.592832883759167 | -0.9481449865772098 | -0.6108996008516099 | -0.4061434738039242 | -0.29172093221845274 |   -0.424210190896367 |  -0.6169218398824241 |  -0.8397446840225526 |   -0.954167225608024 |   -1.038478572039424 |  -0.5627216886050955 |  -0.7132776643754528 |  -0.4482991470196242 |  -0.7313443814678956 |  -0.2676319760951956 |  1.1355497180845329 | ... |
+#+begin_example
+(#<GRID:VECTOR-DOUBLE-FLOAT
+   (-0.724109918962403 -1.8976141671574547 -1.957934478980565
+    -2.0072874613812917 -2.5282356089445157 -2.8572554916160255
+    -2.6488762325907356 -1.4808556491068758 -0.8282995484750477
+    -0.35670438331255033 -0.48282867166996246 -0.2634820832222892
+    -0.09897214188653426 0.37262302327596325 0.5042309763445671
+    0.8771201767056117 0.7838978766153507 0.6468062588355549 0.2958517173192777
+    0.7619632177705834 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (-0.6540576721717962 -0.8274981531800635 -1.020209798744805
+    -1.1743791151965983 -1.3285484316483915 -0.8724642038118366
+    -0.5833967354647243 -0.5577018493894255 -0.3071767101552614
+    -0.1979734443352412 -0.24936321648583895 -0.08877017851522102
+    -0.39710881141880744 -0.21724460889171535 -0.46134602660705465
+    -0.14015995066581877 -0.4549223050882299 0.014009365785974476
+    -0.2300920519293648 0.8362457201955383 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (0.6119458840833236 0.19854832182347495 -0.5629735033920359
+    -1.5420729929548356 -1.6363566475053273 -1.4985574600853775
+    -0.7515408124930193 0.19129573301189864 0.07525431202667796
+    -0.40341654953735734 -1.2157064964339022 -0.9183503551592742
+    -0.5557209145804595 -0.39616396072578103 -0.5339631481457306
+    -0.46143726002996766 0.08250690083825424 0.46689410785179775
+    0.43063116379391636 0.8440287260537648 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (-1.761147224470525 -1.2311901991674863 -0.7614555631034285
+    -0.5928328732342796 -0.9481449697442718 -0.610899590005974
+    -0.40614346659343625 -0.291720927039371 -0.4242101833651308
+    -0.6169218289298724 -0.8397446691141047 -0.95416720866817
+    -1.0384785536027443 -0.5627216786147887 -0.7132776517122431
+    -0.4482991390607235 -0.7313443684839375 -0.2676319713437783
+    1.135549697924496 2.719398534909715 ...)>)
+#+end_example
 
 We now rectify the "derived and normalized" traces:
 #+name: rectify-derived-normalized-traces
 #+BEGIN_SRC lisp
   (setf *derived-data-list* 
-            (mapcar #'(lambda (x thres) (dotimes (i (length x) x) (if (< (aref x i) thres) (setf (aref x i) 0d0)))) 
+            (mapcar #'(lambda (x thres) (funcall (grid:elementwise #'(lambda (v) (if (< v thres) 0d0 v))) x)) 
                     *derived-data-list* 
                     '(4.0d0 4.0d0 4.0d0 4.0d0)))
 #+END_SRC
 
 #+RESULTS: rectify-derived-normalized-traces
-| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
-| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
-| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
-| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
+#+begin_example
+(#<GRID:VECTOR-DOUBLE-FLOAT
+   (0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+    0.0 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+    0.0 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+    0.0 ...)>
+ #<GRID:VECTOR-DOUBLE-FLOAT
+   (0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+    0.0 ...)>)
+#+end_example
 
 Create a vector containing the element-wise sum of the four rectified channels:
 #+name: trace-for-detection
 #+BEGIN_SRC lisp
-  (defparameter *trace-for-detection* (copy-seq (car *derived-data-list*)))
-  (setf *trace-for-detection* (map-into *trace-for-detection* 
-                                        #'+ 
-                                        (nth 0 *derived-data-list*)
-                                        (nth 1 *derived-data-list*)
-                                        (nth 2 *derived-data-list*)
-                                        (nth 3 *derived-data-list*)))
+  (defparameter *trace-for-detection* (antik:+ 
+                                       (nth 0 *derived-data-list*)
+                                       (nth 1 *derived-data-list*)
+                                       (nth 2 *derived-data-list*)
+                                       (nth 3 *derived-data-list*)))
 #+END_SRC
-
-#+RESULTS: trace-for-detection
-| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | ... |
 
 Define a function detecting =peaks=, that is, local maxima:
 #+name: define-peaks
 #+BEGIN_SRC lisp
   (defun peaks (vec &key (min-diff 15))
     (declare (optimize (speed 3)))
+    (declare (type grid:vector-double-float vec))
     (let ((pos nil)
           (amp nil)
           (current-amp 0d0)
           (max-pos 0)
           (max-amp 0d0)
           (in-it nil))
-      (dotimes (i (1- (length vec)))
-        (setf current-amp (aref vec i))
+      (declare (fixnum max-pos))
+      (declare (double-float max-amp current-amp))
+      (dotimes (i (1- (car (grid:dimensions vec))))
+        (setf current-amp (grid:aref vec i))
         (cond ((and (not in-it) (> current-amp 0d0))
                (setf in-it t
                      max-pos i
@@ -676,11 +719,17 @@ Use it:
 
 The =mean=, =sd=, minimal and maximal values of the inter-events intervals of =*sp-1*= are (in sampling points):
 #+BEGIN_SRC lisp :exports both
-  (let ((isi (diff *sp-1*))) (list (float (mean isi)) (sd isi) (reduce #'min isi) (reduce #'max isi)))
+  (let* ((len (length *sp-1*))
+         (isi (antik:- (subseq *sp-1* 1 len)
+                       (subseq *sp-1* 0 (1- len)))))
+    (list (gsll:mean (grid:make-foreign-array '(signed-byte 32) :initial-contents (coerce isi 'list)))
+          (gsll:standard-deviation (grid:make-foreign-array '(signed-byte 32) :initial-contents (coerce isi 'list)))
+          (reduce #'min isi)
+          (reduce #'max isi)))
 #+END_SRC 
 
 #+RESULTS:
-| 173.27242f0 | 150.02945f0 | 16 | 1449 |
+| 173.27241179872757 | 150.02944289364828 | 16 | 1449 |
 
 * Cuts
 
