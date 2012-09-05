@@ -114,6 +114,7 @@ We now define a function reading into our lisp session a file a floats in double
 #+BEGIN_SRC lisp
   (defun read-double-to-grid (name)
     "Reads a file of double-float data and returns a grid vector"
+    (declare (optimize (speed 3)))
     (with-open-file (in name :direction :input
                         :element-type '(unsigned-byte 64))
       (let* ((len (file-length in))
@@ -355,9 +356,12 @@ We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][
   (defun mad (data)
     (declare (optimize (speed 3)))
     (declare (type grid:vector-double-float data))
-    (let ((med (vquantile data '(0.5))))
+    (let ((med (vquantile data '(0.5d0))))
       (declare (double-float med))
-      (* 1.4826 (vquantile (funcall (grid:elementwise #'(lambda (x) (abs (- x med)))) data) '(0.5)))))
+      (labels ((abs-diff (x)
+                 (declare (double-float x))
+                 (the double-float (abs (- x med)))))
+        (the double-float (* 1.4826d0 (vquantile (funcall (grid:elementwise #'abs-diff) data) '(0.5d0)))))))
 #+END_SRC
 
 #+RESULTS: define-mad
@@ -367,11 +371,11 @@ We then get the =MAD= on each recording site:
 #+name: MAD-of-each-site
 #+BEGIN_SRC lisp :exports both :cache yes
   (defparameter *MAD-of-each-site* (mapcar #'mad *data-list*))
-  (mapcar #'(lambda (x) (float (/ (round x 0.001) 1000))) *MAD-of-each-site*)
+  (mapcar #'(lambda (x) (/ (round x 0.001) 1000d0)) *MAD-of-each-site*)
 #+END_SRC
 
-#+RESULTS[b2ed39a61c76799b7a8df31746178b124c7b892e]: MAD-of-each-site
-| 0.517f0 | 0.627f0 | 0.74f0 | 0.684f0 |
+#+RESULTS[e544544530e814a8f3d3411e03bc4d940e35c6f2]: MAD-of-each-site
+| 0.517 | 0.627 | 0.74 | 0.684 |
 
 We divide the amplitudes on each recording site by their =MAD=:
 #+name: normalize-each-site-to-its-MAD
@@ -571,10 +575,17 @@ We are going to filter the data slightly using a "box" filter of length 3. That 
 #+BEGIN_SRC lisp
   (defparameter *derived-data-list* 
     (mapcar #'(lambda (vec)
+                (declare (optimize (speed 3)))
+                (declare (type grid:vector-double-float vec))
                 (let* ((len (car (grid:dimensions vec)))
-                       (arg-lst (mapcar #'(lambda (i) (list (list :range i (- (1- len) (- 2 i)))))
-                                        '(0 1 2))))
-                  (antik:/ (apply #'antik:+ (mapcar #'(lambda (arg) (grid:slice vec arg)) arg-lst)) 3d0)))
+                       (res (grid:make-foreign-array 'double-float :dimensions len :initial-element 0d0)))
+                  (declare (fixnum len))
+                  (declare (type grid:vector-double-float res))
+                  (dotimes (i (- len 2) res)
+                    (grid:gsetf (grid:aref res (1+ i))
+                                (/ (+ (grid:aref vec i)
+                                      (grid:aref vec (1+ i))
+                                      (grid:aref vec (+ i 2))) 3.0d0)))))
             *data-list*))
 #+END_SRC
 
@@ -600,37 +611,37 @@ We are going to filter the data slightly using a "box" filter of length 3. That 
 #+RESULTS: normalize-each-derived-site-to-its-MAD
 #+begin_example
 (#<GRID:VECTOR-DOUBLE-FLOAT
-   (-0.724109918962403 -1.8976141671574547 -1.957934478980565
+   (0.0 -0.724109918962403 -1.8976141671574547 -1.9579344789805653
     -2.0072874613812917 -2.5282356089445157 -2.8572554916160255
-    -2.6488762325907356 -1.4808556491068758 -0.8282995484750477
+    -2.648876232590736 -1.4808556491068758 -0.8282995484750478
     -0.35670438331255033 -0.48282867166996246 -0.2634820832222892
-    -0.09897214188653426 0.37262302327596325 0.5042309763445671
-    0.8771201767056117 0.7838978766153507 0.6468062588355549 0.2958517173192777
-    0.7619632177705834 ...)>
+    -0.09897214188653426 0.3726230232759633 0.5042309763445673
+    0.8771201767056117 0.7838978766153507 0.646806258835555 0.2958517173192777
+    ...)>
  #<GRID:VECTOR-DOUBLE-FLOAT
-   (-0.6540576721717962 -0.8274981531800635 -1.020209798744805
+   (0.0 -0.6540576721717962 -0.8274981531800637 -1.020209798744805
     -1.1743791151965983 -1.3285484316483915 -0.8724642038118366
     -0.5833967354647243 -0.5577018493894255 -0.3071767101552614
-    -0.1979734443352412 -0.24936321648583895 -0.08877017851522102
+    -0.19797344433524122 -0.24936321648583895 -0.08877017851522102
     -0.39710881141880744 -0.21724460889171535 -0.46134602660705465
-    -0.14015995066581877 -0.4549223050882299 0.014009365785974476
-    -0.2300920519293648 0.8362457201955383 ...)>
+    -0.14015995066581877 -0.45492230508822995 0.014009365785974476
+    -0.2300920519293648 ...)>
  #<GRID:VECTOR-DOUBLE-FLOAT
-   (0.6119458840833236 0.19854832182347495 -0.5629735033920359
+   (0.0 0.6119458840833236 0.19854832182347495 -0.5629735033920359
     -1.5420729929548356 -1.6363566475053273 -1.4985574600853775
-    -0.7515408124930193 0.19129573301189864 0.07525431202667796
-    -0.40341654953735734 -1.2157064964339022 -0.9183503551592742
+    -0.7515408124930193 0.19129573301189867 0.07525431202667796
+    -0.40341654953735745 -1.2157064964339022 -0.9183503551592742
     -0.5557209145804595 -0.39616396072578103 -0.5339631481457306
-    -0.46143726002996766 0.08250690083825424 0.46689410785179775
-    0.43063116379391636 0.8440287260537648 ...)>
+    -0.46143726002996766 0.08250690083825425 0.4668941078517978
+    0.43063116379391636 ...)>
  #<GRID:VECTOR-DOUBLE-FLOAT
-   (-1.761147224470525 -1.2311901991674863 -0.7614555631034285
-    -0.5928328732342796 -0.9481449697442718 -0.610899590005974
-    -0.40614346659343625 -0.291720927039371 -0.4242101833651308
-    -0.6169218289298724 -0.8397446691141047 -0.95416720866817
-    -1.0384785536027443 -0.5627216786147887 -0.7132776517122431
-    -0.4482991390607235 -0.7313443684839375 -0.2676319713437783
-    1.135549697924496 2.719398534909715 ...)>)
+   (0.0 -1.761147224470525 -1.231190199167486 -0.7614555631034285
+    -0.5928328732342795 -0.9481449697442716 -0.610899590005974
+    -0.40614346659343625 -0.29172092703937097 -0.4242101833651307
+    -0.6169218289298722 -0.8397446691141047 -0.9541672086681698
+    -1.038478553602744 -0.5627216786147887 -0.713277651712243
+    -0.44829913906072344 -0.7313443684839376 -0.26763197134377825
+    1.1355496979244957 ...)>)
 #+end_example
 
 We now rectify the "derived and normalized" traces:
@@ -667,6 +678,9 @@ Create a vector containing the element-wise sum of the four rectified channels:
                                        (nth 2 *derived-data-list*)
                                        (nth 3 *derived-data-list*)))
 #+END_SRC
+
+#+RESULTS: trace-for-detection
+: *TRACE-FOR-DETECTION*
 
 Define a function detecting =peaks=, that is, local maxima:
 #+name: define-peaks
@@ -737,30 +751,37 @@ After detecting our spikes, we must make our cuts in order to create our events'
 #+name: define-make-events
 #+BEGIN_SRC lisp
   (defun mk-evts (pos data from to)
-  (let ((nb-evts (length pos))
-	(nb-samp (length (car data)))
-	(nb-sites (length data))
-	(cut-length (+ from to 1))
-	(working-pos (copy-seq pos)))
-    (setf working-pos (remove-if #'(lambda (i) 
-				     (or (< i from)) (>= i (- nb-samp to)))  
-				 working-pos))
-    (setf nb-evts (length working-pos))
-    (let* ((res-dim (list nb-evts nb-sites cut-length))
-	   (res (make-array res-dim :element-type 'double-float :initial-element 0d0))
-	   (offset 0))
-      (do* ((evt-idx 0 (1+ evt-idx)))
-	   ((> evt-idx (1- nb-evts)))
-	(setf offset (- (aref working-pos evt-idx) from))
-	(do ((site-idx 0 (1+ site-idx)))
-	    ((> site-idx (1- nb-sites)))
-	  (do ((within-cut-idx 0 (1+ within-cut-idx)))
-	      ((> within-cut-idx (1- cut-length)))
-	    (setf (aref res evt-idx site-idx within-cut-idx)
-		  (aref (nth site-idx data)
-			(+ within-cut-idx offset))))))
-      res)))
+    (declare (optimize (debug 3)))
+    (declare (fixnum from to))
+    (let ((nb-evts (length pos))
+          (nb-samp (car (grid:dimensions (car data))))
+          (nb-sites (length data))
+          (cut-length (+ from to 1))
+          (working-pos (copy-seq pos)))
+      (setf working-pos (remove-if #'(lambda (i) 
+                                       (or (< i from)) (>= i (- nb-samp to)))  
+                                   working-pos))
+      (setf nb-evts (length working-pos))
+      (let* ((res-dim (list (* nb-sites cut-length) nb-evts))
+             (res (grid:make-foreign-array 'double-float :dimensions res-dim :initial-element 0d0))
+             (offset 0))
+        (declare (fixnum offset))
+        (declare (type grid:matrix-double-float res))
+        (do* ((evt-idx 0 (1+ evt-idx)))
+             ((> evt-idx (1- nb-evts)))
+          (setf offset (- (aref working-pos evt-idx) from))
+          (do ((site-idx 0 (1+ site-idx)))
+              ((> site-idx (1- nb-sites)))
+            (do ((within-cut-idx 0 (1+ within-cut-idx)))
+                ((> within-cut-idx (1- cut-length)))
+              (grid:gsetf (grid:aref res (+ within-cut-idx (* site-idx cut-length)) evt-idx)
+                          (grid:aref (nth site-idx data)
+                                     (+ within-cut-idx offset))))))
+        res)))
 #+END_SRC
+
+#+RESULTS: define-make-events
+: MK-EVTS
 
 ** Getting the "right" length for the cuts
 The obvious question we must first address is: How long should our cuts be? The pragmatic way to get an answer is:
