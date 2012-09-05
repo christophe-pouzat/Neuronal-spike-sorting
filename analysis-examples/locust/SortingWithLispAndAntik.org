@@ -799,4 +799,43 @@ Create an events array corresponding to the first half of the data set:
 #+RESULTS: *evts-e*
 : *EVTS-E*
 
+We then get the events' median and mad:
+#+name: *evts-e-med*-and-*evts-e-mad*
+#+BEGIN_SRC lisp 
+  (defparameter *evts-e-med* (iter:iter (iter:for r :matrix-row *evts-e*) (iter:collect (vquantile r '(0.5d0)))))
+  (defparameter *evts-e-mad* (iter:iter (iter:for r :matrix-row *evts-e*) (iter:collect (mad r ))))
+#+END_SRC
 
+#+RESULTS: *evts-e-med*-and-*evts-e-mad*
+: *EVTS-E-MAD*
+
+We are going to use [[http://common-lisp.net/project/rcl/][rcl]], a =Common Lisp= interface to =R= to generate a figure with the events' median and =MAD= superposed. We start by loading =rcl=:
+#+name: load-rcl
+#+BEGIN_SRC lisp
+  (ql:quickload :rcl)
+#+END_SRC
+
+We next initialize =R=:
+#+name: initialize-R
+#+BEGIN_SRC lisp
+  (rcl:r-init)
+#+END_SRC
+
+Then we create the plot:
+#+name: figure-med-and-mad-long
+#+BEGIN_SRC lisp 
+  (let ((vert (iter:iter (iter:for i from 0 to 40)
+                         (iter:collect (* i 10))))
+        (horiz  '(0 1)))
+    (r:with-device ("med-and-mad-long" :png)
+      (r:r "plot.default" *evts-e-med* :type "n" :ylab "Amplitude")
+      (r:r "abline" :v vert :col "grey")
+      (r:r "abline" :h horiz :col "grey")
+      (r:r "lines" *evts-e-med* :lwd 2)
+      (r:r "lines" *evts-e-mad* :lwd 2 :col 2)))
+#+END_SRC
+
+#+RESULTS: figure-med-and-mad-long
+: :NIL
+
+[[file:med-and-mad-long.png]]
