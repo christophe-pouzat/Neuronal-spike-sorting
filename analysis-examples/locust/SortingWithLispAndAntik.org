@@ -127,9 +127,6 @@ We now define a function reading into our lisp session a file a floats in double
 #+RESULTS: define-read-double-to-grid
 : READ-DOUBLE-TO-GRID
 
-#+RESULTS: define-read-double
-: READ-DOUBLE
-
 We can use this function to create a list of vectors with the raw data. Before doing that wet set the variable =*print-lenght*= to 20 in order to avoid over-filling our session with the printed content of our objects, we also set the variable =*print-foreign-array-readably*= of the =grid= package (automatically loaded with =gsll=) to =nil= inorder to avoid output problems with =slime=:
 #+name: set-*print-length*
 #+BEGIN_SRC lisp
@@ -182,16 +179,16 @@ We use it keeping two decimals for the display:
 #+name: five-numbers-summary
 #+BEGIN_SRC lisp :exports both :cache yes
   (mapcar #'(lambda (d) (mapcar #'(lambda (x) 
-                                    (float (/ (round x 0.01) 100))) 
+                                    (/ (round x 0.01) 100d0)) 
                                 (vquantile d '(0d0 0.25d0 0.5d0 0.75d0 1d0)))) 
           *data-list*)
 #+END_SRC
 
-#+RESULTS[bae0797e39a3f45d695bd9bcf9e758b899d14c7e]: five-numbers-summary
-| -9.07f0 | -0.37f0 | -0.03f0 | 0.33f0 | 10.63f0 |
-| -8.23f0 | -0.45f0 | -0.04f0 | 0.4f0  | 11.74f0 |
-| -6.89f0 | -0.53f0 | -0.04f0 | 0.47f0 | 9.85f0  |
-| -7.35f0 | -0.49f0 | -0.04f0 | 0.43f0 | 10.56f0 |
+#+RESULTS[1605423e7a3256f2175ee0c5afb0bddeaaebe2c8]: five-numbers-summary
+| -9.07 | -0.37 | -0.03 | 0.33 | 10.63 |
+| -8.23 | -0.45 | -0.04 |  0.4 | 11.74 |
+| -6.89 | -0.53 | -0.04 | 0.47 |  9.85 |
+| -7.35 | -0.49 | -0.04 | 0.43 | 10.56 |
 
 We see that the data range (=maximum= - =minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar. 
 
@@ -199,12 +196,12 @@ We see that the data range (=maximum= - =minimum=) is similar (close to 20) on t
 We can check next if some processing like a division by the /standard deviation/ (SD) has been applied.
 #+name: sd-of-*data-list*
 #+BEGIN_SRC lisp :exports both :cache yes
-  (mapcar #'(lambda (x) (/ (round (gsll:standard-deviation x) 0.01) 100)) 
+  (mapcar #'(lambda (x) (/ (round (gsll:standard-deviation x) 0.01) 100d0)) 
           *data-list*)
 #+END_SRC
 
-#+RESULTS[5667489f764048b1340b175d6c1c5a93867c4c5e]: sd-of-*data-list*
-| 1 | 1 | 1 | 1 |
+#+RESULTS[3952fda2d808643db48901bf3d1895aeae58a152]: sd-of-*data-list*
+| 1.0 | 1.0 | 1.0 | 1.0 |
 
 ** Discretization step amplitude
 
@@ -369,12 +366,12 @@ We are going to use a [[http://en.wikipedia.org/wiki/Median_absolute_deviation][
 
 We then get the =MAD= on each recording site:
 #+name: MAD-of-each-site
-#+BEGIN_SRC lisp :exports both :cache yes
+#+BEGIN_SRC lisp :exports both
   (defparameter *MAD-of-each-site* (mapcar #'mad *data-list*))
   (mapcar #'(lambda (x) (/ (round x 0.001) 1000d0)) *MAD-of-each-site*)
 #+END_SRC
 
-#+RESULTS[e544544530e814a8f3d3411e03bc4d940e35c6f2]: MAD-of-each-site
+#+RESULTS: MAD-of-each-site
 | 0.517 | 0.627 | 0.74 | 0.684 |
 
 We divide the amplitudes on each recording site by their =MAD=:
@@ -422,7 +419,6 @@ We divide the amplitudes on each recording site by their =MAD=:
     -0.4517243075228202 0.06819565290705518 ...)>)
 #+end_example
 
-
 #+name: write-double-2-file
 #+BEGIN_SRC lisp
   (defun write-double-2-file (data file-name)
@@ -459,70 +455,71 @@ We divide the amplitudes on each recording site by their =MAD=:
 #+RESULTS: define-window
 : WINDOW
 
+We are going to generate a plot with the first 200 ms of normalized data from the first recording site together with the =MAD= and the =SD= by calling =R= from =Common Lisp= with  [[http://common-lisp.net/project/rcl/][rcl]]. We start by loading =rcl=:
+#+name: load-rcl
 #+BEGIN_SRC lisp
-  (write-double-2-file (window (nth 0 *data-list*) :from 0 :to 200) "tmp.dat")
+  (ql:quickload :rcl)
 #+END_SRC
 
-#+RESULTS:
-: DONE
+#+RESULTS: load-rcl
+| :RCL |
+
+We next initialize =R=:
+#+name: initialize-R
+#+BEGIN_SRC lisp
+  (r:r-init)
+#+END_SRC
+
+We can now generate the plot with =R= called from =Common Lisp=:
+#+name: plot-first-200ms-site-one-normalization-comparison
+#+BEGIN_SRC lisp
+  (let* ((X (grid:copy-to (window (nth 0 *data-list*) :from 0 :to 200)))
+         (MAD-lines  '(-1 1))
+         (SD (gsll:standard-deviation (nth 0 *data-list*)))
+         (SD-lines (list (* -1 SD) SD)))
+      (r:with-device ("first-200ms-site-one-normalization-comparison" :png)
+        (r:r "plot.default" X :type "l" :ylab "Amplitude" :xlab "Sample point"
+             :main "First 200 ms on site 1.")
+        (r:r "abline" :h MAD-lines :col "red")
+        (r:r "abline" :h SD-lines :col "blue" :lty 2 :lwd 2)))
+#+END_SRC
 
 #+CAPTION: The first 200 ms on the first recording site.
 #+LABEL: fig:first-200ms-site-one-normalization-comparison
 #+ATTR_LaTeX: width=0.8\textwidth
-#+name: plot-first-200ms-site-one-normalization-comparison
-#+BEGIN_SRC sh :cache yes :file first-200ms-site-one-normalization-comparison.png :exports both
-  graph -T png -I d -a -g 0 tmp.dat > first-200ms-site-one-normalization-comparison.png
-#+END_SRC
-
-#+RESULTS[b087aaa896effb45e4195b85683e881420c05f2d]: plot-first-200ms-site-one-normalization-comparison
 [[file:first-200ms-site-one-normalization-comparison.png]]
 
-#+name: map-int
-#+BEGIN_SRC lisp
-  (defun map-int (fn n)
-    (let ((acc nil))
-      (dotimes (i n)
-        (push (funcall fn i) acc))
-      (nreverse acc)))
-#+END_SRC
-
-#+RESULTS: map-int
-: MAP-INT
-
+** A quick check that the =MAD= "does its job"
+We can check that the =MAD= does its job as a robust estimate of the noise standard deviation by looking at [[http://en.wikipedia.org/wiki/Q-Q_plot][Q-Q plots]] of the whole traces normalized with the MAD and normalized with the "classical" =SD=. We first generate a vector of "percentiles": 
 #+name: *prob-seq*
 #+BEGIN_SRC lisp
-  (defparameter *prob-seq* (map-int #'(lambda (x) (* 0.01d0 (1+ x))) 99)) 
+  (defparameter *prob-seq* (iter:iter (iter:for i from 1 to 99) (iter:collect (* 0.01d0 i)))) 
 #+END_SRC
 
 #+RESULTS: *prob-seq*
 : *PROB-SEQ*
 
+We get the empirical quantiles at each percentile for each of the four recording sites:
 #+name: data-list-quantiles
-#+BEGIN_SRC lisp :cache yes
+#+BEGIN_SRC lisp 
   (defparameter *data-list-quantiles* 
     (mapcar #'(lambda (seq) (vquantile seq *prob-seq*)) *data-list*))
-  *data-list-quantiles*
 #+END_SRC
 
-#+RESULTS[09d2f48e9003346acc070a3aed1c968bd006a8e3]: data-list-quantiles
-| -5.932399336577804 | -3.5585809925045053 | -2.7154675431587614 | -2.3133672827015603 | -2.0669187359697276 |  -1.885325069956798 | -1.7426443323752105 | -1.6259055470811845 |  -1.522137737930939 | -1.4313409049244743 | -1.3535150480617903 | -1.288660167342887 | -1.2238052866239835 | -1.1719213820488608 |  -1.120037477473738 | -1.0681535728986153 | -1.0292406444672735 | -0.9773567398921508 | -0.9384438114608087 | -0.8995308830294666 | ... |
-| -4.148700383384457 | -3.2102784571561513 |  -2.667753281055412 |  -2.315845058719797 |  -2.066576734565403 | -1.8759597808002784 | -1.7293313548271054 | -1.6120286140485671 | -1.5093887158673462 | -1.4360745028807598 | -1.3627602898941735 | -1.289446076907587 | -1.2307947065183178 | -1.1721433361290488 | -1.1281548083370967 | -1.0695034379478277 | -1.0255149101558758 | -0.9815263823639239 | -0.9375378545719721 | -0.8935493267800202 | ... |
-| -3.316908948029952 |  -2.562121669568048 | -2.2248762898297505 |  -2.000046036670885 | -1.8233936949032055 | -1.6949192645267113 | -1.5825041379472788 | -1.5022076189619697 | -1.4219110999766609 | -1.3576738847884138 | -1.2934366696001665 | -1.245258758208981 | -1.1810215430207338 | -1.1328436316295485 | -1.0846657202383632 | -1.0364878088471778 |  -1.004369201253054 | -0.9561912898618686 | -0.9240726822677452 | -0.8758947708765596 | ... |
-| -3.894437559017941 |  -2.952960873915194 | -2.4611446951301765 | -2.1660549878591664 |   -1.95527662552273 | -1.8007058264760105 |  -1.688290699896578 | -1.5758755733171455 |  -1.491564228382571 | -1.4072528834479967 | -1.3369934293358514 | -1.280785866046135 |  -1.224578302756419 | -1.1683707394667027 | -1.1121631761769863 | -1.0700075037096992 | -1.0278518312424119 | -0.9856961587751247 | -0.9435404863078377 | -0.9013848138405505 | ... |
+#+RESULTS: data-list-quantiles
+: *DATA-LIST-QUANTILES*
 
-
+We compute the corresponding quantiles of the standard normal distribution:
 #+name: *QN*
 #+BEGIN_SRC lisp
   (defparameter *QN* (mapcar #'gsll::ugaussian-pinv *prob-seq*))
-  *QN*
 #+END_SRC
 
 #+RESULTS: *QN*
-| -2.3263478740408408 | -2.0537489106318225 | -1.8807936081512509 | -1.7506860712521695 | -1.6448536269514726 | -1.554773594596853 | -1.4757910281791702 | -1.4050715603096324 | -1.3407550336902165 | -1.2815515655446006 | -1.2265281200366105 | -1.17498679206609 | -1.1263911290388005 | -1.080319340814956 | -1.0364333894937894 | -0.9944578832097529 | -0.9541652531461944 | -0.915365087842814 | -0.8778962950512285 | -0.8416212335729142 | ... |
-
+: *QN*
 
 #+name: define-filter4v
-#+BEGIN_SRC lisp
+#+BEGIN_SRC lisp :exports none
   (defmacro filter4s (proseq fn &rest proseqs)
     `(let ((res (copy-seq ,proseq)))
       (map-into res ,fn res ,@proseqs)))
@@ -531,7 +528,7 @@ We divide the amplitudes on each recording site by their =MAD=:
 #+RESULTS: define-filter4v
 : FILTER4S
 
-#+BEGIN_SRC lisp
+#+BEGIN_SRC lisp :exports none
   (let ((theSD (mapcar #'sd *data-list*))
         (currentSD nil)
         (prefix "quant-channel-")
@@ -559,14 +556,32 @@ We divide the amplitudes on each recording site by their =MAD=:
 #+RESULTS:
 : DONE
 
-#+name: test-fig
-#+BEGIN_SRC gnuplot :file test-fig.png :exports results
-  unset key
-  plot 'quant-channel-1-MAD-norm.dat' binary format='%float64' with lines lc rgb "black"
+#+name: check-MAD-job
+#+BEGIN_SRC lisp
+  (let* ((theSD (mapcar #'gsll:standard-deviation *data-list*))
+         (SD-normed-qtl (mapcar #'(lambda (seq) (vquantile seq *prob-seq*))
+                                (mapcar #'(lambda (v d) (funcall (grid:elementwise #'(lambda (x) (/ x d))) v))
+                                    *data-list*
+                                    theSD)))
+         (colors '("black" "orange" "blue" "red")))
+    (r:with-device ("check-MAD-job" :png)
+      (r:r "plot.default" *QN* (nth 0 *data-list-quantiles*) :type "n"
+           :ylab "Empirical Quantiles" :xlab "Theoretical Quantiles")
+      (r:r "abline" :a 0 :b 1 :col "grey70" :lwd 3)
+      (iter:iter (iter:for i from 0 to 3)
+                 (r:r "lines" *QN* (nth i *data-list-quantiles*)
+                      :col (nth i colors))
+                 (r:r "lines" *QN* (nth i SD-normed-qtl)
+                      :col (nth i colors) :lty 2))))
 #+END_SRC
 
-#+RESULTS: test-fig
-[[file:test-fig.png]]
+#+RESULTS: check-MAD-job
+: NIL
+
+#+CAPTION: Performances of =MAD= based vs =SD= based normalizations. After normalizing the data of each recording site by its =MAD= (plain colored curves) or its =SD= (dashed colored curves), Q-Q plot against a standard normal distribution were constructed. Colors: site 1, black; site 2, orange; site 3, blue; site 4, red.
+[[file:check-MAD-job.png]]
+
+We see that the behavior of the "away from normal" fraction is much more homogeneous for small, as well as for large in fact, quantile values with the =MAD= normalized traces than with the =SD= normalized ones. If we consider automatic rules like the three sigmas we are going to reject fewer events (i.e., get fewer putative spikes) with the =SD= based normalization than with the =MAD= based one. 
 
 * Spike detection
 
@@ -809,17 +824,6 @@ We then get the events' median and mad:
 #+RESULTS: *evts-e-med*-and-*evts-e-mad*
 : *EVTS-E-MAD*
 
-We are going to use [[http://common-lisp.net/project/rcl/][rcl]], a =Common Lisp= interface to =R= to generate a figure with the events' median and =MAD= superposed. We start by loading =rcl=:
-#+name: load-rcl
-#+BEGIN_SRC lisp
-  (ql:quickload :rcl)
-#+END_SRC
-
-We next initialize =R=:
-#+name: initialize-R
-#+BEGIN_SRC lisp
-  (rcl:r-init)
-#+END_SRC
 
 Then we create the plot:
 #+name: figure-med-and-mad-long
@@ -838,4 +842,11 @@ Then we create the plot:
 #+RESULTS: figure-med-and-mad-long
 : :NIL
 
+#+CAPTION: Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (100 sampling points) cuts. We see clearly that the dispersion is back to noise level 15 points before the peak and 30 points after the peak (on all sites). We also see that the median event is not back to zero 50 points after the peak, we will have to keep his information in mind when we are going to look for superpositions.
 [[file:med-and-mad-long.png]]
+
+** Events
+
+Once we are satisfied with our spike detection, at least in a provisory way, and that we have decided on the length of our cuts, we proceed by making cuts around the detected events:
+
+ 
