@@ -77,8 +77,8 @@ using =wget=. There are 4 data files, one per recording site, named respectively
 #+RESULTS: download-and-gunzip[:cache yes :file Locust_4.dat](full-data-file-names[3],compressed-data-file-names[3])
 : Locust_4.dat
 
-We can quickly check that the downloaded data look fine:
-#+CAPTION: The 20 s of data on each of the four recording sites.
+We can quickly check that the downloaded data look fine using the (shell) =graph= function of [[http://www.gnu.org/software/plotutils/][plotutils]]:
+#+CAPTION: The 20 s of data on each of the four recording sites (plot built with =graph=).
 #+LABEL: fig:whole-raw-data
 #+ATTR_LaTeX: width=0.8\textwidth
 #+name: plot-whole-raw-data-set 
@@ -89,9 +89,39 @@ We can quickly check that the downloaded data look fine:
 #+RESULTS[a2c7dbd9e029177e8b26288bab3c942b147eff8e]: plot-whole-raw-data-set
 [[file:whole-raw-data.png]]
 
+This can also be done with [[http://www.gnuplot.info/][gnuplot]]:
+#+CAPTION: The 20 s of data on each of the four recording sites (plot built with =gnuplot=).
+#+LABEL: fig:whole-raw-data-gnuplot
+#+ATTR_LaTeX: width=0.8\textwidth
+#+name: plot-whole-raw-data-set-gnuplot
+#+BEGIN_SRC gnuplot :exports both :file plot-whole-raw-data-set-gnuplot.png :cache yes
+  set border 0
+  unset xtics
+  unset ytics
+  set tmargin 0
+  set bmargin 0
+  set lmargin 2
+  set rmargin 2
+  unset key
+  set multiplot layout 4,1
+  plot 'Locust_1.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_2.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_3.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_4.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  unset multiplot
+#+END_SRC 
+
+#+RESULTS[c5445e906e09c83782936f25d235232fa648b9c9]: plot-whole-raw-data-set-gnuplot
+[[file:plot-whole-raw-data-set-gnuplot.png]]
+
+
 * Reading the data into Common Lisp session
 
-We are going to use the =ieee-floats= package which is on [[http://www.quicklisp.org/][quicklisp]]. Assuming the package has been installed (see the instruction on quicklisp web site) we load it into our session with:
+We are going to use three packages that can all be installed  with [[http://www.quicklisp.org/][quicklisp]]:
+- [[https://github.com/marijnh/ieee-floats][ieee-floats]], which gives a easy way do read and write floats following the [[http://en.wikipedia.org/wiki/IEEE_754][IEEE standard for floating points arithmetics]]. 
+- [[http://common-lisp.net/project/gsll/][gsll]], a binding to the [[http://www.gnu.org/software/gsl/][gsl]] library.
+- [[http://common-lisp.net/project/nixies/][cgn]], a binding to =gnuplot=.
+Assuming quicklisp package has been installed (see the instruction on quicklisp web site) we load the three packages into our session with:
 #+name: load-ieee-floats
 #+BEGIN_SRC lisp
   (ql:quickload "ieee-floats")
@@ -100,7 +130,6 @@ We are going to use the =ieee-floats= package which is on [[http://www.quicklisp
 #+RESULTS: load-ieee-floats
 | ieee-floats |
 
-We are also going to use the [[http://common-lisp.net/project/gsll/][gsll]] interface to the [[http://www.gnu.org/software/gsl/][gsl]] library meaning that we have to install and compile the latter before loading the former:
 #+name: load-gsll
 #+BEGIN_SRC lisp
   (ql:quickload "gsll")
@@ -108,6 +137,22 @@ We are also going to use the [[http://common-lisp.net/project/gsll/][gsll]] inte
 
 #+RESULTS: load-gsll
 | gsll |
+
+#+name: load-cgn
+#+BEGIN_SRC lisp
+  (ql:quickload "cgn")
+#+END_SRC
+
+#+RESULTS: load-cgn
+| cgn |
+
+We next start =gnuplot=:
+#+name: start-gnuplot
+#+BEGIN_SRC lisp
+  (cgn:start-gnuplot)
+#+END_SRC
+
+#+RESULTS: start-gnuplot
 
 We now define a function reading into our lisp session a file a floats in double format and returning a "foreign" vector:
 #+name: define-read-double-to-grid  
@@ -176,19 +221,22 @@ Define a function returning the quantiles:
 : VQUANTILE
 
 We use it keeping two decimals for the display:
-#+name: five-numbers-summary
+#+name: *five-number-summary*
 #+BEGIN_SRC lisp :exports both :cache yes
-  (mapcar #'(lambda (d) (mapcar #'(lambda (x) 
-                                    (/ (round x 0.01) 100d0)) 
-                                (vquantile d '(0d0 0.25d0 0.5d0 0.75d0 1d0)))) 
-          *data-list*)
+  (defparameter *five-number-summary*
+    (mapcar #'(lambda (d) (mapcar #'(lambda (x) 
+                                      (/ (round x 0.01) 100d0)) 
+                                  (vquantile d '(0d0 0.25d0 0.5d0 0.75d0 1d0)))) 
+            *data-list*))
+  *five-number-summary*
 #+END_SRC
 
-#+RESULTS[1605423e7a3256f2175ee0c5afb0bddeaaebe2c8]: five-numbers-summary
+#+RESULTS[c07257da1c9213d06988895b74033e065324778a]: *five-number-summary*
 | -9.07 | -0.37 | -0.03 | 0.33 | 10.63 |
 | -8.23 | -0.45 | -0.04 |  0.4 | 11.74 |
 | -6.89 | -0.53 | -0.04 | 0.47 |  9.85 |
 | -7.35 | -0.49 | -0.04 | 0.43 | 10.56 |
+
 
 We see that the data range (=maximum= - =minimum=) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar. 
 
@@ -334,6 +382,7 @@ We see that for each recording site, the longest segment of constant value is tw
 
 ** Plotting the data
 
+We can use the =graph= function (called from the shell) to see part of the data--using argument =-T X= would generate an X-window output instead of a =png= file:
 #+CAPTION: The first 200 ms of data on each of the four recording sites.
 #+LABEL: fig:first-200ms-raw-data
 #+ATTR_LaTeX: width=0.8\textwidth
@@ -344,6 +393,41 @@ We see that for each recording site, the longest segment of constant value is tw
 
 #+RESULTS[4e83ccf1807eff7cf8977a809d34f08ef5e83760]: plot-first-200ms-raw-data-set
 [[file:first-200ms-raw-data.png]]
+
+#+BEGIN_SRC lisp
+  (reduce #'min (mapcar #'(lambda (x) (reduce #'min (grid:copy-to x))) *data-list*))
+#+END_SRC
+
+#+RESULTS:
+: -9.074055726333713
+
+#+BEGIN_SRC lisp
+  (reduce #'max (mapcar #'(lambda (x) (reduce #'max (grid:copy-to x))) *data-list*))
+#+END_SRC
+
+#+RESULTS:
+: 11.741931107056121
+
+#+BEGIN_SRC gnuplot :var minimum=-9.1 :var maximum=12 :file test-all-data.png
+  set border 0
+  unset xtics
+  unset ytics
+  set tmargin 0
+  set bmargin 0
+  set lmargin 2
+  set rmargin 2
+  set yrange [minimum:maximum]
+  unset key
+  set multiplot layout 4,1
+  plot 'Locust_1.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_2.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_3.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  plot 'Locust_4.dat' binary format='%float64' using 1 with lines lc rgb "black"
+  unset multiplot
+#+END_SRC
+
+#+RESULTS:
+[[file:test-all-data.png]]
 
 * Data renormalization
 
@@ -455,20 +539,6 @@ We divide the amplitudes on each recording site by their =MAD=:
 #+RESULTS: define-window
 : WINDOW
 
-We are going to generate a plot with the first 200 ms of normalized data from the first recording site together with the =MAD= and the =SD= by calling =R= from =Common Lisp= with  [[http://common-lisp.net/project/rcl/][rcl]]. We start by loading =rcl=:
-#+name: load-rcl
-#+BEGIN_SRC lisp
-  (ql:quickload :rcl)
-#+END_SRC
-
-#+RESULTS: load-rcl
-| :RCL |
-
-We next initialize =R=:
-#+name: initialize-R
-#+BEGIN_SRC lisp
-  (r:r-init)
-#+END_SRC
 
 We can now generate the plot with =R= called from =Common Lisp=:
 #+name: plot-first-200ms-site-one-normalization-comparison
@@ -483,6 +553,9 @@ We can now generate the plot with =R= called from =Common Lisp=:
         (r:r "abline" :h MAD-lines :col "red")
         (r:r "abline" :h SD-lines :col "blue" :lty 2 :lwd 2)))
 #+END_SRC
+
+#+RESULTS: plot-first-200ms-site-one-normalization-comparison
+: :NIL
 
 #+CAPTION: The first 200 ms on the first recording site.
 #+LABEL: fig:first-200ms-site-one-normalization-comparison
