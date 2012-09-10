@@ -503,6 +503,7 @@ We divide the amplitudes on each recording site by their =MAD=:
     -0.4517243075228202 0.06819565290705518 ...)>)
 #+end_example
 
+We define some utility functions to write data to disk and to plot them using (directly of indirectly) =gnuplot=:
 #+name: write-double-2-file
 #+BEGIN_SRC lisp
   (defun write-double-2-file (data file-name)
@@ -539,28 +540,82 @@ We divide the amplitudes on each recording site by their =MAD=:
 #+RESULTS: define-window
 : WINDOW
 
-
-We can now generate the plot with =R= called from =Common Lisp=:
-#+name: plot-first-200ms-site-one-normalization-comparison
+#+name: define-plot-raw
 #+BEGIN_SRC lisp
-  (let* ((X (grid:copy-to (window (nth 0 *data-list*) :from 0 :to 200)))
-         (MAD-lines  '(-1 1))
-         (SD (gsll:standard-deviation (nth 0 *data-list*)))
-         (SD-lines (list (* -1 SD) SD)))
-      (r:with-device ("first-200ms-site-one-normalization-comparison" :png)
-        (r:r "plot.default" X :type "l" :ylab "Amplitude" :xlab "Sample point"
-             :main "First 200 ms on site 1.")
-        (r:r "abline" :h MAD-lines :col "red")
-        (r:r "abline" :h SD-lines :col "blue" :lty 2 :lwd 2)))
+  (defun plot-raw (data)
+    (let ((nchan (length data)))
+      (cgn:format-gnuplot "set border 0")
+      (cgn:format-gnuplot "unset xtics")
+      (cgn:format-gnuplot "unset ytics")
+      (cgn:format-gnuplot "set tmargin 0")
+      (cgn:format-gnuplot "set bmargin 0")
+      (cgn:format-gnuplot "set lmargin 2")
+      (cgn:format-gnuplot "set rmargin 2")
+      (cgn:format-gnuplot "unset key")
+      (if (> nchan 1)
+          (cgn:format-gnuplot (concatenate 'string "set multiplot layout " (format nil "~A" nchan) ",1")))
+      (do* ((i 0 (incf i))
+            (file-name (concatenate 'string "transient4plot" (format nil "-~A" (1+ i))  ".dat")
+                       (concatenate 'string "transient4plot" (format nil "-~A" (1+ i))  ".dat")))
+           ((> i (1- nchan)))
+        (write-double-2-file (nth i data) file-name)
+        (cgn:format-gnuplot (concatenate 'string "plot '" file-name  "' binary format='%float64' using 1 with lines lc rgb 'black'")))
+      (if (> nchan 1)
+          (cgn:format-gnuplot "unset multiplot"))))
+  
+  (defun plot-raw-for-org (data generic-file-name fig-name)
+    (format t "#+BEGIN_SRC gnuplot :file ~A ~%" fig-name)
+    (let ((nchan (length data))
+          (file-name generic-file-name))
+      (format t "set border 0 ~%")
+      (format t "unset xtics ~%")
+      (format t "unset ytics ~%")
+      (format t "set tmargin 0 ~%")
+      (format t "set bmargin 0 ~%")
+      (format t "set lmargin 2 ~%")
+      (format t "set rmargin 2 ~%")
+      (format t "unset key ~%")
+      (cond ((= nchan 1)
+             (setf file-name (concatenate 'string generic-file-name ".dat"))
+             (write-double-2-file (nth 0 data) file-name)
+             (format t (concatenate 'string "plot '" file-name "' binary format='%float64' using 1 with lines lc rgb 'black' ~%")))
+            (t
+             (format t (concatenate 'string "set multiplot layout " (format nil "~A" nchan) ",1 ~%"))
+             (dotimes (i nchan)
+               (setf file-name (concatenate 'string generic-file-name (format nil "-~A" (1+ i))  ".dat"))
+               (write-double-2-file (nth i data) file-name)
+               (format t (concatenate 'string "plot '" file-name "' binary format='%float64' using 1 with lines lc rgb 'black' ~%"))
+               )
+             (format t "unset multiplot ~%"))))
+    (format t "#+END_SRC ~%")
+    nil)
 #+END_SRC
 
-#+RESULTS: plot-first-200ms-site-one-normalization-comparison
-: :NIL
+#+BEGIN_SRC lisp :results output raw
+  (plot-raw-for-org (mapcar #'window *data-list*) "test-org-plot" "test-fig.png")
+#+END_SRC
 
-#+CAPTION: The first 200 ms on the first recording site.
-#+LABEL: fig:first-200ms-site-one-normalization-comparison
-#+ATTR_LaTeX: width=0.8\textwidth
-[[file:first-200ms-site-one-normalization-comparison.png]]
+#+RESULTS:
+#+BEGIN_SRC gnuplot :file test-fig.png 
+set border 0 
+unset xtics 
+unset ytics 
+set tmargin 0 
+set bmargin 0 
+set lmargin 2 
+set rmargin 2 
+unset key 
+set multiplot layout 4,1 
+plot 'test-org-plot-1.dat' binary format='%float64' using 1 with lines lc rgb 'black' 
+plot 'test-org-plot-2.dat' binary format='%float64' using 1 with lines lc rgb 'black' 
+plot 'test-org-plot-3.dat' binary format='%float64' using 1 with lines lc rgb 'black' 
+plot 'test-org-plot-4.dat' binary format='%float64' using 1 with lines lc rgb 'black' 
+unset multiplot 
+#+END_SRC 
+
+#+RESULTS:
+[[file:test-fig.png]]
+
 
 ** A quick check that the =MAD= "does its job"
 We can check that the =MAD= does its job as a robust estimate of the noise standard deviation by looking at [[http://en.wikipedia.org/wiki/Q-Q_plot][Q-Q plots]] of the whole traces normalized with the MAD and normalized with the "classical" =SD=. We first generate a vector of "percentiles": 
