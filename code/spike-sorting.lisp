@@ -63,10 +63,9 @@ mts object and as many rows as there are probabilities in the list."
 Argument min should be the floor of the data slot of the first argument (nil is the default).
 Argument max should be the ceiling of the data slot of the first argument (nil is the default).
 Arguments BITMAPSIZE, line-width and pen-color-name are passed to the libplot plotter.
-The function generates a plot as a side effect and returns a plist with elements:
-  ':plotter-par', the pointer to the plotter parameter structure
-  ':plotter', the pointer to the plotter structure
-These two pointers have to be deleted by the user!"
+The function generates a plot as a side effect and returns a list with two integers
+which should both be 0 if the 'external' structures created to make the plot were
+successufully deleted."
   (if (not min) (setf min (floor (iter:iter (iter:for e :matrix-element (mts-data mts-obj)) (iter:minimize e)))))
   (if (not max) (setf max (ceiling (iter:iter (iter:for e :matrix-element (mts-data mts-obj)) (iter:maximize e)))))
   (let* ((range (coerce (- max min) 'double-float))
@@ -91,4 +90,4 @@ These two pointers have to be deleted by the user!"
 	  (cllp:fcont plotter (coerce i 'double-float) (+ (grid:aref (mts-data mts-obj) i ch-idx) offset)))
 	)
       (cllp:closepl plotter)
-      (list :plotter-par plotter-params :plotter plotter))))
+      (list (cllp:deleteplparams plotter-params) (cllp:deletepl plotter)))))
