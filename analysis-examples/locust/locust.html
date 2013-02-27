@@ -1,0 +1,1981 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+               "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<title>Analysis of Locust Data Set</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+<meta name="title" content="Analysis of Locust Data Set"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="generated" content="2013-02-27T17:35+0100"/>
+<meta name="author" content="Christophe Pouzat"/>
+<meta name="description" content=""/>
+<meta name="keywords" content=""/>
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  html { font-family: Times, serif; font-size: 12pt; }
+  .title  { text-align: center; }
+  .todo   { color: red; }
+  .done   { color: green; }
+  .tag    { background-color: #add8e6; font-weight:normal }
+  .target { }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .right  {margin-left:auto; margin-right:0px;  text-align:right;}
+  .left   {margin-left:0px;  margin-right:auto; text-align:left;}
+  .center {margin-left:auto; margin-right:auto; text-align:center;}
+  p.verse { margin-left: 3% }
+  pre {
+	border: 1pt solid #AEBDCC;
+	background-color: #F3F5F7;
+	padding: 5pt;
+	font-family: courier, monospace;
+        font-size: 90%;
+        overflow:auto;
+  }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top;  }
+  th.right  { text-align:center;  }
+  th.left   { text-align:center;   }
+  th.center { text-align:center; }
+  td.right  { text-align:right;  }
+  td.left   { text-align:left;   }
+  td.center { text-align:center; }
+  dt { font-weight: bold; }
+  div.figure { padding: 0.5em; }
+  div.figure p { text-align: center; }
+  div.inlinetask {
+    padding:10px;
+    border:2px solid gray;
+    margin:10px;
+    background: #ffffcc;
+  }
+  textarea { overflow-x: auto; }
+  .linenr { font-size:smaller }
+  .code-highlighted {background-color:#ffff00;}
+  .org-info-js_info-navigation { border-style:none; }
+  #org-info-js_console-label { font-size:10px; font-weight:bold;
+                               white-space:nowrap; }
+  .org-info-js_search-highlight {background-color:#ffff00; color:#000000;
+                                 font-weight:bold; }
+  /*]]>*/-->
+</style>
+<link rel="stylesheet" title="Standard" href="/worg/style/worg.css" type="text/css" />
+<link rel="alternate stylesheet" title="Zenburn" href="/worg/style/worg-zenburn.css" type="text/css" />
+<link rel="alternate stylesheet" title="Classic" href="/worg/style/worg-classic.css" type="text/css" />
+<link rel="stylesheet" href="http://orgmode.org/css/lightbox.css" type="text/css" media="screen" />
+<link rel="SHORTCUT ICON" href="/org-mode-unicorn.ico" type="image/x-icon" />
+<link rel="icon" href="/org-mode-unicorn.ico" type="image/ico" />
+<script type="text/javascript">
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code in this tag.
+
+Copyright (C) 2012-2013 Free Software Foundation, Inc.
+
+The JavaScript code in this tag is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code in this tag.
+*/
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+<script type="text/javascript" src="http://orgmode.org/mathjax/MathJax.js">
+/**
+ *
+ * @source: http://orgmode.org/mathjax/MathJax.js
+ *
+ * @licstart  The following is the entire license notice for the
+ *  JavaScript code in http://orgmode.org/mathjax/MathJax.js.
+ *
+ * Copyright (C) 2012-2013  MathJax
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @licend  The above is the entire license notice
+ * for the JavaScript code in http://orgmode.org/mathjax/MathJax.js.
+ *
+ */
+
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code below.
+
+Copyright (C) 2012-2013 Free Software Foundation, Inc.
+
+The JavaScript code below is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code below.
+*/
+<!--/*--><![CDATA[/*><!--*/
+    MathJax.Hub.Config({
+        // Only one of the two following lines, depending on user settings
+        // First allows browser-native MathML display, second forces HTML/CSS
+        //  config: ["MMLorHTML.js"], jax: ["input/TeX"],
+            jax: ["input/TeX", "output/HTML-CSS"],
+        extensions: ["tex2jax.js","TeX/AMSmath.js","TeX/AMSsymbols.js",
+                     "TeX/noUndefined.js"],
+        tex2jax: {
+            inlineMath: [ ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"], ["\\begin{displaymath}","\\end{displaymath}"] ],
+            skipTags: ["script","noscript","style","textarea","pre","code"],
+            ignoreClass: "tex2jax_ignore",
+            processEscapes: false,
+            processEnvironments: true,
+            preview: "TeX"
+        },
+        showProcessingMessages: true,
+        displayAlign: "center",
+        displayIndent: "2em",
+
+        "HTML-CSS": {
+             scale: 100,
+             availableFonts: ["STIX","TeX"],
+             preferredFont: "TeX",
+             webFont: "TeX",
+             imageFont: "TeX",
+             showMathMenu: true,
+        },
+        MMLorHTML: {
+             prefer: {
+                 MSIE:    "MML",
+                 Firefox: "MML",
+                 Opera:   "HTML",
+                 other:   "HTML"
+             }
+        }
+    });
+/*]]>*///-->
+</script>
+</head>
+<body>
+<div id="org-div-home-and-up" style="text-align:right;font-size:70%;white-space:nowrap;">
+ <a accesskey="h" href="sorting.html"> UP </a>
+ |
+ <a accesskey="H" href="sorting.html"> HOME </a>
+</div>
+
+<div id="preamble">
+
+</div>
+
+<div id="content">
+<h1 class="title">Analysis of Locust Data Set</h1>
+
+
+
+
+
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 How to proceed?</a>
+<ul>
+<li><a href="#sec-1-1">1.1 Loading the script file</a></li>
+<li><a href="#sec-1-2">1.2 Loading the data</a></li>
+</ul>
+</li>
+<li><a href="#sec-2">2 Preliminary Analysis</a>
+<ul>
+<li><a href="#sec-2-1">2.1 Five number summary</a></li>
+<li><a href="#sec-2-2">2.2 Were the data normalized?</a></li>
+<li><a href="#sec-2-3">2.3 Discretization step amplitude</a></li>
+<li><a href="#sec-2-4">2.4 Detecting saturation</a></li>
+<li><a href="#sec-2-5">2.5 Plot the data</a></li>
+</ul>
+</li>
+<li><a href="#sec-3">3 Data renormalization</a>
+<ul>
+<li><a href="#sec-3-1">3.1 A quick check that the <code>MAD</code> "does its job"</a></li>
+</ul>
+</li>
+<li><a href="#sec-4">4 Interactive data exploration</a></li>
+<li><a href="#sec-5">5 Spike detection</a>
+<ul>
+<li><a href="#sec-5-1">5.1 Interactive spike detection check</a></li>
+<li><a href="#sec-5-2">5.2 Remove useless objects</a></li>
+<li><a href="#sec-5-3">5.3 Data set split</a></li>
+</ul>
+</li>
+<li><a href="#sec-6">6 Cuts</a>
+<ul>
+<li><a href="#sec-6-1">6.1 Getting the "right" length for the cuts</a></li>
+<li><a href="#sec-6-2">6.2 Events</a></li>
+<li><a href="#sec-6-3">6.3 Noise</a></li>
+</ul>
+</li>
+<li><a href="#sec-7">7 First jitter cancellation</a></li>
+<li><a href="#sec-8">8 Getting "clean" events</a></li>
+<li><a href="#sec-9">9 Dimension reduction</a>
+<ul>
+<li><a href="#sec-9-1">9.1 Principal component analysis</a></li>
+<li><a href="#sec-9-2">9.2 Exploring <code>PCA</code> results</a></li>
+<li><a href="#sec-9-3">9.3 Static representation of the projected data</a></li>
+<li><a href="#sec-9-4">9.4 Dynamic representation of the projected data</a></li>
+</ul>
+</li>
+<li><a href="#sec-10">10 Clustering</a>
+<ul>
+<li><a href="#sec-10-1">10.1 k-means clustering</a></li>
+<li><a href="#sec-10-2">10.2 Results inspection with <code>GGobi</code></a></li>
+<li><a href="#sec-10-3">10.3 Cluster specific plots</a></li>
+</ul>
+</li>
+<li><a href="#sec-11">11 Cluster specific events realignment</a>
+<ul>
+<li><a href="#sec-11-1">11.1 Recursive alignment</a></li>
+<li><a href="#sec-11-2">11.2 Summary plot</a></li>
+</ul>
+</li>
+<li><a href="#sec-12">12 "Brute force" superposition resolution</a>
+<ul>
+<li><a href="#sec-12-1">12.1 Long cuts</a></li>
+<li><a href="#sec-12-2">12.2 Peeling process</a>
+<ul>
+<li><a href="#sec-12-2-1">12.2.1 <code>onePerClique</code></a></li>
+<li><a href="#sec-12-2-2">12.2.2 <code>predict</code> and <code>residual</code> methods</a></li>
+</ul>
+</li>
+<li><a href="#sec-12-3">12.3 Peeling iterations</a></li>
+<li><a href="#sec-12-4">12.4 Summurazing the results so far</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> How to proceed?</h2>
+<div class="outline-text-2" id="text-1">
+
+
+<p>
+The locust data set is located at the following web site: <a href="http://xtof.disque.math.cnrs.fr/data">http://xtof.disque.math.cnrs.fr/data</a>. So you should start by dowloading the four file <code>Locust_x.tar.gz</code>  (where <code>x</code> = 1, 2, 3, 4) in some directory where you will perform your analysis (see second sub-section). 
+</p>
+
+</div>
+
+<div id="outline-container-1-1" class="outline-3">
+<h3 id="sec-1-1"><span class="section-number-3">1.1</span> Loading the script file</h3>
+<div class="outline-text-3" id="text-1-1">
+
+<p>We start by loading file <code>sorting.R</code> containing the sorting specific functions from the web. These functions will soon be organized as a "proper" <code>R</code> package. The <code>URL</code> of the file is <a href="https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R">https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R</a> (now hosted on <a href="https://github.com/christophe-pouzat/Neuronal-spike-sorting">GitHub</a>) so the loading is done by dowloading the source file first from its <code>url</code>:
+</p>
+
+<p>
+to a file named, guess what:
+</p>
+
+<p>
+using function <code>download.file</code> setting the optional argument <code>method</code> to <code>wget</code> since we are downloading from an <code>https</code>:
+</p>
+
+
+<pre class="example">download.file(url="https://raw.github.com/christophe-pouzat/Neuronal-spike-sorting/master/code/sorting.R",destfile="sorting.R",method="wget")
+</pre>
+
+
+<p>
+The functions defined in the file can then be made accessible from the <code>R</code> workspace – assuming that <code>R</code> has been started from the directory where the previous download took place – with the following <code>R</code> command:
+</p>
+
+
+<pre class="example">source("sorting.R")
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-1-2" class="outline-3">
+<h3 id="sec-1-2"><span class="section-number-3">1.2</span> Loading the data</h3>
+<div class="outline-text-3" id="text-1-2">
+
+<p>The data are simply loaded, once we know where to find them and if we do not forget that they have been compressed with <code>gzip</code>. The data are stored with one file per recording channel in double format. They were sampled at 15 kHz and there is 20 s of them. Since they are compressed, we cannot read them directly into <code>R</code> from the depository nd we must download them first:
+</p>
+
+
+<pre class="example">reposName &lt;-"http://xtof.disque.math.cnrs.fr/data/"
+dN &lt;- paste("Locust_",1:4,".dat.gz",sep="")
+sapply(1:4, function(i)
+       download.file(paste(reposName,dN[i],sep=""),
+                     dN[i],mode="wb")
+       )
+</pre>
+
+
+<p>
+Once the data are in our <code>working directory</code> we can load them into our <code>R workspace</code>:
+</p>
+
+
+<pre class="example">nb &lt;- 20*15000
+lD &lt;- sapply(dN,
+             function(n) {
+               mC &lt;- gzfile(n,open="rb")
+               x &lt;- readBin(mC,what="double",n=nb)
+               close(mC);x
+             }
+             )
+colnames(lD) &lt;- paste("site",1:4)
+</pre>
+
+
+<p>
+We can check that our <code>lD</code> object has the correct dimension:
+</p>
+
+
+<pre class="example">dim(lD)
+</pre>
+
+
+<pre class="example">
+[1] 300000      4
+</pre>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Preliminary Analysis</h2>
+<div class="outline-text-2" id="text-2">
+
+
+<p>
+We are going to start our analysis by some "sanity checks" to make sure that nothing "weird" happened during the recording.
+</p>
+
+</div>
+
+<div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Five number summary</h3>
+<div class="outline-text-3" id="text-2-1">
+
+<p>We should start by getting an overall picture of the data like the one provided by the <code>summary</code> method of <code>R</code> which outputs a <code>5 numbers plus mean</code> summary. The five numbers are the <code>minimum</code>, the <code>first quartile</code>, the <code>median</code>, the <code>third quartile</code> and the <code>maximum</code>:
+</p>
+
+
+<pre class="example">summary(lD,digits=2)
+</pre>
+
+
+<pre class="example">
+     site 1           site 2           site 3           site 4     
+ Min.   :-9.074   Min.   :-8.229   Min.   :-6.890   Min.   :-7.35  
+ 1st Qu.:-0.371   1st Qu.:-0.450   1st Qu.:-0.530   1st Qu.:-0.49  
+ Median :-0.029   Median :-0.036   Median :-0.042   Median :-0.04  
+ Mean   : 0.000   Mean   : 0.000   Mean   : 0.000   Mean   : 0.00  
+ 3rd Qu.: 0.326   3rd Qu.: 0.396   3rd Qu.: 0.469   3rd Qu.: 0.43  
+ Max.   :10.626   Max.   :11.742   Max.   : 9.849   Max.   :10.56
+</pre>
+
+
+
+<p>
+We see that the data range (<code>maximum - minimum</code>) is similar (close to 20) on the four recording sites. The inter-quartiles ranges are also similar.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-2" class="outline-3">
+<h3 id="sec-2-2"><span class="section-number-3">2.2</span> Were the data normalized?</h3>
+<div class="outline-text-3" id="text-2-2">
+
+<p>We can check next if some processing like a division by the <i>standard deviation</i> (SD) has been applied:
+</p>
+
+
+<pre class="example">apply(lD,2,sd)
+</pre>
+
+
+<pre class="example">
+site 1 site 2 site 3 site 4 
+     1      1      1      1
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2-3" class="outline-3">
+<h3 id="sec-2-3"><span class="section-number-3">2.3</span> Discretization step amplitude</h3>
+<div class="outline-text-3" id="text-2-3">
+
+<p>We clearly see that these data have been <i>scaled</i>, that is, normalized to have an SD of 1. Since the data have been digitized we can easily obtain the apparent size of the digitization set:
+</p>
+
+
+<pre class="example">apply(lD,2, function(x) min(diff(sort(unique(x)))))
+</pre>
+
+
+<pre class="example">
+     site 1      site 2      site 3      site 4 
+0.006709845 0.009194500 0.011888433 0.009614042
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2-4" class="outline-3">
+<h3 id="sec-2-4"><span class="section-number-3">2.4</span> Detecting saturation</h3>
+<div class="outline-text-3" id="text-2-4">
+
+<p>Before embarking into a comprehensive analysis of data that we did not record ourselves (of that we recorded so long ago that we do not remember any "remarkable" event concerning them), it can be wise to check that no amplifier or A/D card saturation occurred. We can quickly check for that by looking at the length of the longuest segment of constant value. When saturation occurs the recorded value stays for many sampling points at the same upper or lower saturating level.
+</p>
+
+
+<pre class="example">ndL &lt;- lapply(1:4,function(i) cstValueSgts(lD[,i]))
+sapply(ndL, function(l) max(l[2,]))
+</pre>
+
+
+<pre class="example">
+[1] 2 2 2 2
+</pre>
+
+
+
+<p>
+We see that for each recording site, the longest segment of constant value is <i>two sampling points</i> long, that is 2/15 ms. There is no ground to worry about saturation here.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-5" class="outline-3">
+<h3 id="sec-2-5"><span class="section-number-3">2.5</span> Plot the data</h3>
+<div class="outline-text-3" id="text-2-5">
+
+<p>We are going to profit from the <code>time series</code> (<code>ts</code> and <code>mts</code> for multiple time series) objects of <code>R</code> by redefining our <code>lD</code> matrix as:
+</p>
+
+
+<pre class="example">lD &lt;- ts(lD,start=0,freq=15e3)
+</pre>
+
+
+<p>
+It is then straightforward to plot the whole data set:
+</p>
+
+
+<pre class="example">plot(lD)
+</pre>
+
+
+
+<div id="fig-lD-whole" class="figure">
+<p><img src="img/lD-whole.png"  alt="img/lD-whole.png" /></p>
+<p>The whole (20 s) locust data set.</p>
+</div>
+
+<p>
+It is also good to "zoom in" and look at the data with a finer time scale:
+</p>
+
+
+<pre class="example">plot(window(lD,start=0,end=0.2))
+</pre>
+
+
+
+<div id="fig-lD-first200" class="figure">
+<p><img src="img/lD-first200ms.png"  alt="img/lD-first200ms.png" /></p>
+<p>First 200 ms of the locust data set.</p>
+</div>
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Data renormalization</h2>
+<div class="outline-text-2" id="text-3">
+
+
+<p>
+We are going to use a <a href="http://en.wikipedia.org/wiki/Median_absolute_deviation">median absolute deviation</a> (<code>MAD</code>) based renormalization. The goal of the procedure is to scale the raw data such that the <i>noise SD</i> is approximately 1. Since it is not straightforward to obtain a noise SD on data where both signal (<i>i.e.</i>, spikes) and noise are present, we use this <a href="http://en.wikipedia.org/wiki/Robust_statistics">robust</a> type of statistic for the SD. Luckily this is simply obtained in <code>R</code>:
+</p>
+
+
+<pre class="example">lD.mad &lt;- apply(lD,2,mad)
+lD &lt;- t(t(lD)/lD.mad)
+lD &lt;- ts(lD,start=0,freq=15e3)
+</pre>
+
+
+<p>
+where the last line of code ensures that <code>lD</code> is still an <code>mts</code> object. We can check on a plot how <code>MAD</code> and <code>SD</code> compare:
+</p>
+
+
+<pre class="example">plot(window(lD[,1],0,0.2))
+abline(h=c(-1,1),col=2)
+abline(h=c(-1,1)*sd(lD[,1]),col=4,lty=2,lwd=2)
+</pre>
+
+
+
+<div id="fig-site1-with-MAD-and-SD" class="figure">
+<p><img src="img/site1-with-MAD-and-SD.png"  alt="img/site1-with-MAD-and-SD.png" /></p>
+<p>First 200 ms on site 1 of the locust data set. In red: +/- the <code>MAD</code>; in dashed blue +/- the <code>SD</code>.</p>
+</div>
+
+
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> A quick check that the <code>MAD</code> "does its job"</h3>
+<div class="outline-text-3" id="text-3-1">
+
+<p>We can check that the <code>MAD</code> does its job as a robust estimate of the <i>noise</i> standard deviation by looking at <a href="http://en.wikipedia.org/wiki/Q-Q_plot">Q-Q plots</a> of the whole traces normalized with the <code>MAD</code> and normalized with the "classical" <code>SD</code>.
+</p>
+
+
+<pre class="example">lDQ &lt;- apply(lD,2,quantile, probs=seq(0.01,0.99,0.01))
+lDnormSD &lt;- apply(lD,2,function(x) x/sd(x))
+lDnormSDQ &lt;- apply(lDnormSD,2,quantile, probs=seq(0.01,0.99,0.01))
+qq &lt;- qnorm(seq(0.01,0.99,0.01))
+matplot(qq,lDQ,type="n",xlab="Normal quantiles",ylab="Empirical quantiles")
+abline(0,1,col="grey70",lwd=3)
+col=c("black","orange","blue","red")
+matlines(qq,lDnormSDQ,lty=2,col=col)
+matlines(qq,lDQ,lty=1,col=col)
+rm(lDnormSD,lDnormSDQ)
+</pre>
+
+
+
+<div id="fig-check-MAD" class="figure">
+<p><img src="img/check-MAD.png"  alt="img/check-MAD.png" /></p>
+<p>Performances of <code>MAD</code> based vs <code>SD</code> based normalizations. After normalizing the data of each recording site by its <code>MAD</code> (plain colored curves) or its <code>SD</code> (dashed colored curves), Q-Q plot against a standard normal distribution were constructed. Colors: site 1, black; site 2, orange; site 3, blue; site 4, red.</p>
+</div>
+
+
+<p>
+We see that the behavior of the "away from normal" fraction is much more homogeneous for small, as well as for large in fact, quantile values with the <code>MAD</code> normalized traces than with the <code>SD</code> normalized ones. If we consider automatic rules like the three sigmas we are going to reject fewer events (<i>i.e.</i>, get fewer putative spikes) with the <code>SD</code> based normalization than with the <code>MAD</code> based one.   
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Interactive data exploration</h2>
+<div class="outline-text-2" id="text-4">
+
+
+<p>
+Although we can't illustrate properly this <i>key</i> step on a "static" document it is absolutely necessary to look at the data in detail using:
+</p>
+
+
+<pre class="example">explore(lD)
+</pre>
+
+
+<p>
+Upon using this command the user is invited to move forward (typing "n" + <code>RETURN</code> or simply <code>RETURN</code>), backward (typing "f" + <code>RETURN</code>), to change the abscissa or ordinate scale, etc.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Spike detection</h2>
+<div class="outline-text-2" id="text-5">
+
+
+<p>
+We are going to filter the data slightly using a "box" filter of length 3. That is, the data points of the original trace are going to be replaced by the average of themselves with their two nearest neighbors. We will then scale the filtered traces such that the <code>MAD</code> is one on each recording sites and keep only the parts of the signal which above 4:
+</p>
+
+
+<pre class="example">lDf &lt;- filter(lD,rep(1,3)/3)
+lDf.mad &lt;- apply(lDf,2,mad,na.rm=TRUE)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+</pre>
+
+
+<p>
+We can see the difference between the <i>raw</i> trace and the <i>filtered and rectified</i> one on which spikes are going to be detected with:
+</p>
+
+
+<pre class="example">plot(window(lD[,1],0,0.2))
+abline(h=4,col=4,lty=2,lwd=2)
+lines(window(ts(lDfr[,1],start=0,freq=15e3),0,0.2),col=2)
+</pre>
+
+
+
+<div id="fig-compare-raw-and-filtered-lD" class="figure">
+<p><img src="img/compare-raw-and-filtered-lD.png"  alt="img/compare-raw-and-filtered-lD.png" /></p>
+<p>First 200 ms on site 1 of data set <code>lD</code>. The raw data are shown in black, the detection threshold appears in dashed blue and the filtered and rectified trace on which spike detection is going to be preformed appears in red.</p>
+</div>
+
+<p>
+Spikes are then detected as local maxima on the <i>summed, filtered and rectified</i> traces:
+</p>
+
+
+<pre class="example">sp1 &lt;- peaks(apply(lDfr,1,sum),15)
+</pre>
+
+
+<p>
+The returned object, <code>sp1</code>, is essentially a vector of integer containing the indexes of the detected spikes. To facilitate handling it is in addition defined as an object of class <code>eventsPos</code> meaning that entering its name on the command line and typing returns, that is, calling the <code>print</code> method on the object gives a short description of it:
+</p>
+
+
+<pre class="example">sp1
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 1769 events. 
+  Mean inter event interval: 169.45 sampling points, corresponding SD: 150.2 sampling points 
+  Smallest and largest inter event intervals: 9 and 1453 sampling points.
+</pre>
+
+
+<p>
+We see that 1769 events were detected. Since the mean inter event interval is very close to the SD, the "compound process" (since it's likely to be the sum of the activities of many neurons) is essentially Poisson.  
+</p>
+
+</div>
+
+<div id="outline-container-5-1" class="outline-3">
+<h3 id="sec-5-1"><span class="section-number-3">5.1</span> Interactive spike detection check</h3>
+<div class="outline-text-3" id="text-5-1">
+
+<p>We can interactively check the detection quality with:
+</p>
+
+
+<pre class="example">explore(sp1,lD,col=c("black","grey50"))
+</pre>
+
+
+<p>
+That leads to a display very similar to the one previously obtained with <code>explore(lD)</code> except that the detected events appear superposed on the raw data as red dots.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-5-2" class="outline-3">
+<h3 id="sec-5-2"><span class="section-number-3">5.2</span> Remove useless objects</h3>
+<div class="outline-text-3" id="text-5-2">
+
+<p>Since we are not going to use <code>lDfr</code> anymore we can save memory by removing it:
+</p>
+
+
+<pre class="example">remove(lDfr)
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-5-3" class="outline-3">
+<h3 id="sec-5-3"><span class="section-number-3">5.3</span> Data set split</h3>
+<div class="outline-text-3" id="text-5-3">
+
+<p>In order to get stronger checks for our procedure and to illustrate better how it works, we are going to split our data set in two parts, establish our model on the first and use this model on both parts:
+</p>
+
+
+<pre class="example">(sp1E &lt;- as.eventsPos(sp1[sp1 &lt;= dim(lD)[1]/2]))
+(sp1L &lt;- as.eventsPos(sp1[sp1 &gt; dim(lD)[1]/2]))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 892 events. 
+  Mean inter event interval: 167.84 sampling points, corresponding SD: 146.92 sampling points 
+  Smallest and largest inter event intervals: 10 and 1180 sampling points.
+
+eventsPos object with indexes of 877 events. 
+  Mean inter event interval: 171.01 sampling points, corresponding SD: 153.6 sampling points 
+  Smallest and largest inter event intervals: 9 and 1453 sampling points.
+</pre>
+
+
+<p>
+We see that <code>eventsPos</code> objects can be sub-set like classical vectors. We also see that the sub-setting based on total time results in set with roughly the same number of events.
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Cuts</h2>
+<div class="outline-text-2" id="text-6">
+
+
+</div>
+
+<div id="outline-container-6-1" class="outline-3">
+<h3 id="sec-6-1"><span class="section-number-3">6.1</span> Getting the "right" length for the cuts</h3>
+<div class="outline-text-3" id="text-6-1">
+
+<p>After detecting our spikes, we must make our cuts in order to create our events' sample. That is, for each detected event we literally cut a piece of data and we do that on the four recording sites. To this end we use function <code>mkEvents</code> which in addition to an <code>eventPos</code> argument (<code>sp1E</code>) and a "raw data" argument (<code>lD</code>) takes an integer argument (<code>before</code>) stating how many sampling points we want to keep within the cut before the reference time as well as another integer argument (<code>after</code>) stating how many sampling points we want to keep within the cut after the reference time. The function returns essentially a matrix where each event is a column. The cuts on the different recording sites are put one after the other when the event is built. The obvious question we must first address is: How long should our cuts be? The pragmatic way to get an answer is:
+</p><ul>
+<li>Make cuts much longer than what we think is necessary, like 50 sampling points on both sides of the detected event's time.
+</li>
+<li>Compute robust estimates of the "central" event (with the <code>median</code>) and of the dispersion of the sample around this central event (with the <code>MAD</code>).
+</li>
+<li>Plot the two together and check when does the <code>MAD</code> trace reach the background noise level (at 1 since we have normalized the data).
+</li>
+<li>Having the central event allows us to see if it outlasts significantly the region where the <code>MAD</code> is above the background noise level.
+</li>
+</ul>
+
+
+<p>
+Clearly cutting beyond the time at which the <code>MAD</code> hits back the noise level should not bring any useful information as far a classifying the spikes is concerned. So here we perform this task as follows:
+</p>
+
+
+<pre class="example">evtsE &lt;- mkEvents(sp1E,lD,49,50)
+evtsE.med &lt;- median(evtsE)
+evtsE.mad &lt;- apply(evtsE,1,mad)
+</pre>
+
+
+
+<pre class="example">plot(evtsE.med,type="n",ylab="Amplitude")
+abline(v=seq(0,400,10),col="grey")
+abline(h=c(0,1),col="grey")
+lines(evtsE.med,lwd=2)
+lines(evtsE.mad,col=2,lwd=2)
+</pre>
+
+
+
+<div id="fig-check-MAD-on-stereo1-long-cuts" class="figure">
+<p><img src="img/check-MAD-on-long-cuts.png"  alt="img/check-MAD-on-long-cuts.png" /></p>
+<p>Robust estimates of the central event (black) and of the sample's dispersion around the central event (red) obtained with "long" (100 sampling points) cuts. We see clearly that the dispersion is back to noise level 15 points before the peak and 30 points after the peak (on all sites). We also see that the median event is not back to zero 50 points after the peak, we will have to keep his information in mind when we are going to look for superpositions.</p>
+</div>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-6-2" class="outline-3">
+<h3 id="sec-6-2"><span class="section-number-3">6.2</span> Events</h3>
+<div class="outline-text-3" id="text-6-2">
+
+<p>Once we are satisfied with our spike detection, at least in a provisory way, and that we have decided on the length of our cuts, we proceed by making <code>cuts</code> around the detected events. :
+</p>
+
+
+<pre class="example">evtsE &lt;- mkEvents(sp1E,lD,14,30)
+</pre>
+
+
+<p>
+Here we have decided to keep 14 points before and 30 points after our reference times. <code>evtsE</code> is a bit more than a matrix, it is an object of class <code>events</code>, meaning that a <code>summary</code> method is available:
+</p>
+
+
+<pre class="example">summary(evtsE)
+</pre>
+
+
+<pre class="example">
+
+events object deriving from data set: lD.
+ Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+ The 'reference' time of each event is located at point 15 of the cut.
+ There are 892 events in the object.
+</pre>
+
+
+<p>
+A <code>print</code> method which calls the <code>plot</code> method is also available giving:
+</p>
+
+
+<pre class="example">evtsE[,1:200]
+</pre>
+
+
+
+<div id="fig-first-200-of-evtsE" class="figure">
+<p><img src="img/first-200-of-evtsE.png"  alt="img/first-200-of-evtsE.png" /></p>
+<p>First 200 events of <code>evtsE</code>. Cuts from the four recording sites appear one after the other. The background (white / grey) changes with the site. In red, <i>robust</i> estimate of the "central" event obtained by computing the pointwise median. In blue, <i>robust</i> estimate of the scale (SD) obtained by computing the pointwise <code>MAD</code>.</p>
+</div>
+
+<p>
+Like <code>eventsPos</code> objects, <code>events</code> objects can be sub-set <i>with respect to the rows</i> like usual matrix. Notice that a rather sophisticated plot was obtained with an extremely simple command&hellip; The beauty of <code>R</code> class / method mechanism in action.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-6-3" class="outline-3">
+<h3 id="sec-6-3"><span class="section-number-3">6.3</span> Noise</h3>
+<div class="outline-text-3" id="text-6-3">
+
+<p>Getting an estimate of the noise statistical properties is an essential ingredient to build respectable goodness of fit tests. In our approach "noise events" are essentially anything that is not an "event" is the sense of the previous section. I wrote essentially and not exactly since there is a little twist here which is the minimal distance we are willing to accept between the reference time of a noise event and the reference time of the last preceding and of the first following "event". We could think that keeping a cut length on each side would be enough. That would indeed be the case if <i>all</i> events were starting from and returning to zero within a cut. But this is not the case with the cuts parameters we tool previously (that will become clear soon). You might wonder why we chose so short a cut length then. Simply to avoid having to deal with too many superposed events which are the really bothering events for anyone wanting to do proper sorting. 
+To obtain our noise events we are going to use function <code>mkNoise</code> which takes the <i>same</i> arguments as function <code>mkEvents</code> plus two number: <code>safetyFactor</code> a number by which the cut length is multiplied and which sets the minimal distance between the reference times discussed in the previous paragraph and <code>size</code> the maximal number of noise events one wants to cut (the actual number obtained might be smaller depending on the data length, the cut length, the safety factor and the number of events).
+</p>
+<p>
+We cut next noise events with a rather large safety factor:
+</p>
+
+
+<pre class="example">noiseE &lt;- mkNoise(sp1E,lD,14,30,safetyFactor=2.5,2000)
+</pre>
+
+<p>
+Here <code>noiseE</code> is also an <code>events</code> object and its <code>summary</code> is:
+</p>
+
+
+<pre class="example">summary(noiseE)
+</pre>
+
+
+<pre class="example">
+
+events object deriving from data set: lD.
+ Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+ The 'reference' time of each event is located at point 15 of the cut.
+ There are 1375 events in the object.
+</pre>
+
+
+<p>
+The reader interested in checking the effect of the <code>safetyFactor</code> argument is invited to try something like:
+</p>
+
+
+<pre class="example">noiseElowSF &lt;- mkNoise(sp1E,lD,14,30,safetyFactor=1,2000)
+plot(mean(noiseElowSF),type="l")
+lines(mean(noiseE),col=2)
+</pre>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-7" class="outline-2">
+<h2 id="sec-7"><span class="section-number-2">7</span> First jitter cancellation</h2>
+<div class="outline-text-2" id="text-7">
+
+
+<p>
+Since the "reference times" of our events are their detected peaks, we expect that due to both recording noise and sampling the actual event's peak will be off the apparent one. We are therefore going to realign our events on a robust estimate of the "central event", the pointwise events median (the red trace on our previous <a href="first-200-of-evtsE.png">events figure</a>), before going for the clustering stage. We can perform a quick alignment using a second order Taylor expansion around the central event:
+</p>
+
+
+<pre class="example">evtsEo2 &lt;- alignWithProcrustes(sp1E,lD,14,30,maxIt=1,plot=FALSE)
+summary(evtsEo2)
+</pre>
+
+
+<pre class="example">
+
+events object deriving from data set: lD.
+ Events defined as cuts of 45 sampling points on each of the 4 recording sites.
+ The 'reference' time of each event is located at point 15 of the cut.
+ Events were realigned on median event.
+ There are 892 events in the object.
+</pre>
+
+
+<p>
+We see that a new line appeared in the <code>summary</code> of our resulting <code>events</code> object. This line, the one before the last, states that the events were realigned.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-8" class="outline-2">
+<h2 id="sec-8"><span class="section-number-2">8</span> Getting "clean" events</h2>
+<div class="outline-text-2" id="text-8">
+
+
+<p>
+Our spike sorting has two main stages, the first one consist in estimating a <code>generative model</code> and the second one consists in using this model to build a <code>classifier</code> before applying to the data. Our <code>generative model</code> <i>will include superposed events</i> but it is going to be built out of reasonably "clean" ones. Here by clean we mean events which are not due to a nearly simultaneous firing of two or more neurons; and simultaneity is defined on the time scale of one of our cuts. 
+</p>
+<p>
+In order to eliminate the most obvious superpositions we are going to use a rather brute force approach, looking at the sides of the central peak of our median event and checking if individual events are not too large there, that is do not exhibit extra peaks. We first define a function doing this job:
+</p>
+
+
+<pre class="example">goodEvtsFct &lt;- function(samp,thr=3) {
+  samp.med &lt;- apply(samp,1,median)
+  samp.mad &lt;- apply(samp,1,mad)
+  above &lt;- samp.med &gt; 0
+  samp.r &lt;- apply(samp,2,function(x) {x[above] &lt;- 0;x})
+  apply(samp.r,2,function(x) all(x&lt;samp.med+thr*samp.mad))
+}
+</pre>
+
+
+<p>
+We then apply our new function to our realigned sample:
+</p>
+
+
+<pre class="example">goodEvts &lt;- goodEvtsFct(evtsEo2,8)
+</pre>
+
+
+<p>
+Here <code>goodEvts</code> is a vector of <code>logical</code> with as many elements as events in <code>evtsEo2</code>. Elements of <code>goodEvts</code> are <code>TRUE</code> if the corresponding event of <code>evtsEo2</code> is "good" (<i>i.e.</i>, not a superposition) and is <code>FALSE</code> otherwise. We can look at the first 200 good events easily with:
+</p>
+
+
+
+<pre class="example">evtsEo2[,goodEvts][,1:200]
+</pre>
+
+
+<p>
+We see that few superpositions are left but the most obvious ones of our previous <a href="first-200-of-evtsE.png">events figure</a> are gone. We can also look at the <code>[1] 46</code>  "bad" events with:
+</p>
+
+
+
+<pre class="example">evtsEo2[,!goodEvts]
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-9" class="outline-2">
+<h2 id="sec-9"><span class="section-number-2">9</span> Dimension reduction</h2>
+<div class="outline-text-2" id="text-9">
+
+
+
+</div>
+
+<div id="outline-container-9-1" class="outline-3">
+<h3 id="sec-9-1"><span class="section-number-3">9.1</span> Principal component analysis</h3>
+<div class="outline-text-3" id="text-9-1">
+
+<p>Our events are living right now in an 180 dimensional space (our cuts are 45 sampling points long and we are working with 4 recording sites simultaneously). It turns out that it hard for most humans to perceive structures in such spaces. It also hard, not to say impossible with a realistic sample size, to estimate probability densities (which what some clustering algorithm are actually doing) in such spaces, unless one is ready to make strong assumptions about these densities. It is therefore usually a good practice to try to reduce the dimension of the <a href="http://en.wikipedia.org/wiki/Sample_space">sample space</a> used to represent the data. We are going to that with <a href="http://en.wikipedia.org/wiki/Principal_component_analysis">principal component analysis</a> (<code>PCA</code>), using it on our "good" events. 
+</p>
+
+
+<pre class="example">evtsE.pc &lt;- prcomp(t(evtsEo2[,goodEvts]))
+</pre>
+
+
+<p>
+We have to be careful here since function <code>prcomp</code> assumes that the data matrix is built by stacking the events / observations as rows and not as columns like we did in our <code>events</code> object. We apply therefore the function to the <code>transpose</code> (<code>t()</code>) of our events.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-9-2" class="outline-3">
+<h3 id="sec-9-2"><span class="section-number-3">9.2</span> Exploring <code>PCA</code> results</h3>
+<div class="outline-text-3" id="text-9-2">
+
+<p><code>PCA</code> is a rather abstract procedure to most of its users, at least when they start using it. But one way to grasp what it does is to plot the <code>mean event</code> plus or minus, say twice, each principal components like:
+</p>
+
+
+<pre class="example">layout(matrix(1:4,nr=2))
+explore(evtsE.pc,1,5)
+explore(evtsE.pc,2,5)
+explore(evtsE.pc,3,5)
+explore(evtsE.pc,4,5)
+</pre>
+
+
+
+<div id="fig-explore-evtsEo2-PC1to4" class="figure">
+<p><img src="img/explore-evtsEo2-PC1to4.png"  alt="img/explore-evtsEo2-PC1to4.png" /></p>
+<p>First 200 good events of <code>evtsEo2</code>. Bad events of <code>evtsEo2</code>. PCA of <code>evtsEo2</code> (for "good" events) exploration (PC 1 to 4). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 5 x PC (red), the mean - 5 x PC (blue) for each of the first 4 PCs. The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.</p>
+</div>
+
+<p>
+We can see that the first 3 PCs correspond to pure amplitude variations. An event with a large projection (<code>score</code>) on the first PC is smaller than the average event on recording sites 1, 2 and 3, but not on 4. An event with a large projection on PC 2 is larger than average on site 1, smaller than average on site 2 and 3 and identical to the average on site 4. An event with a large projection on PC 3 is larger than the average on site 4 only. PC 4 is the first principal component corresponding to a change in <i>shape</i> as opposed to <i>amplitude</i>. A large projection on PC 4 means that the event as a shallower first valley and a deeper second valley than the average event on all recording sites.  
+</p>
+<p>
+We now look at the next 4 principal components:
+</p>
+
+
+<pre class="example">layout(matrix(1:4,nr=2))
+explore(evtsE.pc,5,5)
+explore(evtsE.pc,6,5)
+explore(evtsE.pc,7,5)
+explore(evtsE.pc,8,5)
+</pre>
+
+
+
+<div id="fig-explore-evtsEo2-PC5to8" class="figure">
+<p><img src="img/explore-evtsEo2-PC5to8.png"  alt="img/explore-evtsEo2-PC5to8.png" /></p>
+<p>PCA of <code>evtsEo2</code> (for "good" events) exploration (PC 5 to 8). Each of the 4 graphs shows the mean waveform (black), the mean waveform + 5 x PC (red), the mean - 5 x PC (blue). The fraction of the total variance "explained" by the component appears in between parenthesis in the title of each graph.</p>
+</div>
+
+<p>
+An event with a large projection on PC 5 tends to be "slower" than the average event. An event with a large projection on PC 6 exhibits a slower kinetics of its second valley than the average event. PC 5 and 6 correspond to effects shared among recording sites. PC 7 correspond also to a "change of shape" effect on all sites except the first. Events with a large projection on PC 8 rise slightly faster and decay slightly slower than the average event on all recording site. Notice also that PC 8 has a "noisier" aspect than the other suggesting that we are reaching the limit of the "events extra variability" compared to the variability present in the background noise.
+</p>
+<p>
+This guess can be confirmed by comparing the variance of the "good" events sample with the one of the noise sample to which the variance contributed by the first 8 PCs is added:
+</p>
+
+
+<pre class="example">sum(evtsE.pc$sdev^2)
+sum(diag(cov(t(noiseE))))+sum(evtsE.pc$sdev[1:8]^2)
+</pre>
+
+
+<pre class="example">
+[1] 721.0221
+[1] 717.9175
+</pre>
+
+
+<p>
+This near equality means that we should not include component beyond the 8th one in our analysis. That's leave the room to use still fewer components. 
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-9-3" class="outline-3">
+<h3 id="sec-9-3"><span class="section-number-3">9.3</span> Static representation of the projected data</h3>
+<div class="outline-text-3" id="text-9-3">
+
+<p>We can build a <code>scatter plot matrix</code> showing the projections of our "good" events sample onto the plane defined by pairs of the few first PCs:
+</p>
+
+
+<pre class="example">panel.dens &lt;- function(x,...) {
+  usr &lt;- par("usr")
+  on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  d &lt;- density(x, adjust=0.5)
+  x &lt;- d$x
+  y &lt;- d$y
+  y &lt;- y/max(y)
+  lines(x, y, col="grey50", ...)
+}
+pairs(evtsE.pc$x[,1:4],pch=".",gap=0,diag.panel=panel.dens)
+</pre>
+
+
+
+<div id="fig-scatter-plot-matrix-projOnPCs-evtsEo2" class="figure">
+<p><img src="img/scatter-plot-matrix-projOnPCs-evtsEo2.png"  alt="img/scatter-plot-matrix-projOnPCs-evtsEo2.png" /></p>
+<p>Scatter plot matrix of the projections of the good events in <code>evtsEo2</code> onto the planes defined by the first 4 PCs. The diagonal shows a smooth (Gaussian kernel based) density estimate of the projection of the sample on the corresponding PC. Using the first 8 PCs does not make finner structure visible.</p>
+</div>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-9-4" class="outline-3">
+<h3 id="sec-9-4"><span class="section-number-3">9.4</span> Dynamic representation of the projected data</h3>
+<div class="outline-text-3" id="text-9-4">
+
+
+<p>
+The best way to discern structures in "high dimensional" data is to dynamically visualize them. To this end, the tool of choice is <a href="http://www.ggobi.org/">GGobi</a>, an open source software available on <code>Linux</code>, <code>Windows</code> and <code>MacOS</code>. It is in addition interfaced to <code>R</code> thanks to the <a href="http://cran.at.r-project.org/web/packages/rggobi/index.html">rggobi</a> package. We have therefore two ways to use it: as a stand alone program after exporting the data from <code>R</code>, or directly within <code>R</code>. We are going to use it in its stand alone version here. We therefore start by exporting our data in <code>csv</code> format to our disk:
+</p>
+
+
+<pre class="example">write.csv(evtsE.pc$x[,1:8],file="evtsE.csv")
+</pre>
+
+
+<p>
+What comes next is not part of this document but here is a brief description of how to get it:
+</p><ul>
+<li>Launch <code>GGobi</code>
+</li>
+<li>In menu: <code>File</code> -&gt; <code>Open</code>, select <code>evtsE.csv</code>.
+</li>
+<li>Since the glyphs are rather large, start by changing them for smaller ones:
+<ul>
+<li>Go to menu: <code>Interaction</code> -&gt; <code>Brush</code>.
+</li>
+<li>On the Brush panel which appeared check the <code>Persistent</code> box.
+</li>
+<li>Click on <code>Choose color &amp; glyph...</code>.
+</li>
+<li>On the chooser which pops out, click on the small dot on the upper left of the left panel.
+</li>
+<li>Go back to the window with the data points.
+</li>
+<li>Right click on the lower right corner of the rectangle which appeared on the figure after you selected <code>Brush</code>.
+</li>
+<li>Dragg the rectangle corner in order to cover the whole set of points.
+</li>
+<li>Go back to the <code>Interaction</code> menu and select the first row to go back where you were at the start.
+</li>
+</ul>
+
+</li>
+<li>Select menu: <code>View</code> -&gt; <code>Rotation</code>.
+</li>
+<li>Adjust the speed of the rotation in order to see things properly.
+</li>
+</ul>
+
+
+<p>
+You should easily discern 10 rather well separated clusters. Meaning that an automatic clustering with 10 clusters on the first 3 principal components should do the job.
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-10" class="outline-2">
+<h2 id="sec-10"><span class="section-number-2">10</span> Clustering</h2>
+<div class="outline-text-2" id="text-10">
+
+
+
+</div>
+
+<div id="outline-container-10-1" class="outline-3">
+<h3 id="sec-10-1"><span class="section-number-3">10.1</span> k-means clustering</h3>
+<div class="outline-text-3" id="text-10-1">
+
+
+<p>
+Since our dynamic visualization shows 10 well separated clusters in 3 dimension, a simple <a href="http://en.wikipedia.org/wiki/K-means_clustering">k-means</a> should do the job:
+</p>
+
+
+<pre class="example">set.seed(20061001,kind="Mersenne-Twister")
+km10 &lt;- kmeans(evtsE.pc$x[,1:3],centers=10,iter.max=100,nstart=100)
+c10 &lt;- km10$cluster
+</pre>
+
+
+<p>
+Since function <code>kmeans</code> of <code>R</code> does use a random initialization, we set the seed (as well as the <code>kind</code>) of our pseudo random number generator in order to ensure full reproducibility. In order to ensure reproducibility even if another seed is used as well as to facilitate the interpretation of the results, we "order" the clusters by "size" using the integrated absolute value of the central / median event of each cluster as a measure of its size.
+</p>
+
+
+
+<pre class="example">cluster.med &lt;- sapply(1:10, function(cIdx) median(evtsEo2[,goodEvts][,c10==cIdx]))
+sizeC &lt;- sapply(1:10,function(cIdx) sum(abs(cluster.med[,cIdx])))
+newOrder &lt;- sort.int(sizeC,decreasing=TRUE,index.return=TRUE)$ix
+cluster.mad &lt;- sapply(1:10, function(cIdx) {ce &lt;- t(evtsEo2)[goodEvts,];ce &lt;- ce[c10==cIdx,];apply(ce,2,mad)})
+cluster.med &lt;- cluster.med[,newOrder]
+cluster.mad &lt;- cluster.mad[,newOrder]
+c10b &lt;- sapply(1:10, function(idx) (1:10)[newOrder==idx])[c10]
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-10-2" class="outline-3">
+<h3 id="sec-10-2"><span class="section-number-3">10.2</span> Results inspection with <code>GGobi</code></h3>
+<div class="outline-text-3" id="text-10-2">
+
+
+<p>
+We start by checking our clustering quality with <code>GGobi</code>. To this end we export the data and the labels of each event:
+</p>
+
+
+<pre class="example">write.csv(cbind(evtsE.pc$x[,1:3],c10b),file="evtsEsorted.csv")
+</pre>
+
+
+<p>
+Again the dynamic visualization is not part of this document, but here is how to get it:
+</p><ul>
+<li>Load the new data into GGobi like before.
+</li>
+<li>In menu: <code>Display</code> -&gt; <code>New Scatterplot Display</code>, select <code>evtsEsorted.csv</code>.
+</li>
+<li>Change the glyphs like before.
+</li>
+<li>In menu: <code>Tools</code> -&gt; <code>Color Schemes</code>, select a scheme with 10 colors, like <code>Spectral</code>, <code>Spectral 10</code>.
+</li>
+<li>In menu: <code>Tools</code> -&gt; <code>Automatic Brushing</code>, select <code>evtsEsorted.csv</code> tab and, within this tab, select variable <code>c10b</code>. Then click on <code>Apply</code>.
+</li>
+<li>Select <code>View</code> -&gt; <code>Rotation</code> like before and see your result. 
+</li>
+</ul>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-10-3" class="outline-3">
+<h3 id="sec-10-3"><span class="section-number-3">10.3</span> Cluster specific plots</h3>
+<div class="outline-text-3" id="text-10-3">
+
+
+<p>
+Another way to inspect the clustering results is to look at cluster specific events plots:
+</p>
+
+
+<pre class="example">layout(matrix(1:4,nr=4))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==1],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==2],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==3],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==4],y.bar=5)
+</pre>
+
+
+
+<div id="fig-events-clusters1to4" class="figure">
+<p><img src="img/events-clusters1to4.png"  alt="img/events-clusters1to4.png" /></p>
+<p>First 4 clusters. Cluster 1 at the top, cluster 4 at the bottom. Scale bar: 5 global <code>MAD</code> units. Red, cluster specific central / median event. Blue, cluster specific <code>MAD</code>.</p>
+</div>
+
+<p>
+Notice the increased <code>MAD</code> on the rising phase of cluster 2 on the first recording site. A sing of misalignment of the events of this cluster.
+</p>
+
+
+
+<pre class="example">layout(matrix(1:4,nr=4))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==5],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==6],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==7],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==8],y.bar=5)
+</pre>
+
+
+
+<div id="fig-events-clusters5to8" class="figure">
+<p><img src="img/events-clusters5to8.png"  alt="img/events-clusters5to8.png" /></p>
+<p>Next 4 clusters. Cluster 5 at the top, cluster 8 at the bottom. Scale bar: 5 global <code>MAD</code> units. Red, cluster specific central / median event. Blue, cluster specific <code>MAD</code>.</p>
+</div>
+
+<p>
+Cluster 5 has few events while some "subtle" superpositions are present in cluster 7.
+</p>
+
+
+
+<pre class="example">layout(matrix(1:2,nr=2))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==9],y.bar=5)
+plot(evtsEo2[,goodEvts][,c10b==10],y.bar=5)
+</pre>
+
+
+
+<div id="fig-events-clusters9to10" class="figure">
+<p><img src="img/events-clusters9to10.png"  alt="img/events-clusters9to10.png" /></p>
+<p>Last 2 clusters. Cluster 9 at the top, cluster 10 at the bottom. Scale bar: 5 global <code>MAD</code> units. Red, cluster specific central / median event. Blue, cluster specific <code>MAD</code>.</p>
+</div>
+
+<p>
+Cluster 10 exhibits an extra variability on sites 1 and 4 around its first valley and its peak.
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-11" class="outline-2">
+<h2 id="sec-11"><span class="section-number-2">11</span> Cluster specific events realignment</h2>
+<div class="outline-text-2" id="text-11">
+
+
+
+</div>
+
+<div id="outline-container-11-1" class="outline-3">
+<h3 id="sec-11-1"><span class="section-number-3">11.1</span> Recursive alignment</h3>
+<div class="outline-text-3" id="text-11-1">
+
+<p>Now that we have clusters looking essentially reasonable, we can proceed with a cluster specific events realignment. We are going to do that iteratively alternating between:
+</p><ul>
+<li>Estimation of the central cluster event
+</li>
+<li>Alignment of individual events on the central event
+</li>
+</ul>
+
+<p>We stop when two successive central event estimations are close enough to each other. Here the distance between to estimations is defined as the maximum of the absolute value of their pointwise difference. The yardstick used to decide if the distance is small enough is an estimation of the pointwise standard error defined as the MAD divided by the square root of the number of events in the cluster. The routine we use next <code>alignWithProcrustes</code> generates automatically plots (per default) showing the progress of the iterative procedure. These plots do not appear in the present document. The numerical summary appearing while the procedure runs appears bellow. After each iteration the maximum of the absolute of the median difference (multiplied by the square root of the number of events and divided by the <code>MAD</code>) is written together with the maximum allowed value. While the scaled difference is larger than the maximum allowed value the iterative procedure proceeds. 
+</p>
+
+
+<pre class="example">ujL &lt;- lapply(1:length(unique(c10b)),
+              function(cIdx)
+              alignWithProcrustes(sp1E[goodEvts][c10b==cIdx],lD,14,30)
+              )
+</pre>
+
+
+
+<p>
+Here a change in the template difference from a value smaller than 1 to a value larger than 1 means that a new cluster is considered (we are processing the 10 clusters one after the other).
+</p>
+<p>
+We can now compare the events of cluster 2 before and after cluster specific realignment:
+</p>
+
+
+<pre class="example">layout(matrix(1:2,nr=2))
+par(mar=c(1,1,1,1))
+plot(evtsEo2[,goodEvts][,c10b==2],y.bar=5)
+plot(ujL[[2]],y.bar=5)
+</pre>
+
+
+
+<div id="fig-events-clusters-2-with-without-alignment" class="figure">
+<p><img src="img/events-clusters-2-with-without-alignment.png"  alt="img/events-clusters-2-with-without-alignment.png" /></p>
+<p>Events from cluster 2 before (top) and after (bottom) realignment. Scale bar: 5 global <code>MAD</code> units. Red, cluster specific central / median event. Blue, cluster specific <code>MAD</code>.</p>
+</div>
+
+<p>
+The extra variability in the rising phase on site 1 as been suppressed by realignment. 
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-11-2" class="outline-3">
+<h3 id="sec-11-2"><span class="section-number-3">11.2</span> Summary plot</h3>
+<div class="outline-text-3" id="text-11-2">
+
+
+<p>
+We can summarize our estimation procedure so far by plotting a matrix of "templates" each row corresponding to a recording site, each column to a cluster. The construction of this figure requires the installation of <a href="http://cran.at.r-project.org/web/packages/ggplot2/index.html">ggplot2</a>:
+</p>
+
+
+<pre class="example">library(ggplot2)
+template.med &lt;- sapply(1:10,function(i) median(ujL[[i]]))
+template.mad &lt;- sapply(1:10, function(i) apply(ujL[[i]],1,mad))
+templateDF &lt;- data.frame(x=rep(rep(rep((1:45)/15,4),10),2),
+                         y=c(as.vector(template.med),as.vector(template.mad)),
+                         channel=as.factor(rep(rep(rep(1:4,each=45),10),2)),
+                         template=as.factor(rep(rep(1:10,each=180),2)),
+                         what=c(rep("mean",180*10),rep("SD",180*10))
+                         )
+print(qplot(x,y,data=templateDF,
+            facets=channel ~ template,
+            geom="line",colour=what,
+            xlab="Time (ms)",
+            ylab="Amplitude",
+            size=I(0.5)) +
+      scale_x_continuous(breaks=0:3)
+      )
+
+</pre>
+
+
+
+<div id="fig-template-summary-figure" class="figure">
+<p><img src="img/template-summary-figure.png"  alt="img/template-summary-figure.png" /></p>
+<p>Summary plot with the 10 templates corresponding to the robust estimate of the mean of each cluster. A robust estimate of the clusters' <code>SD</code> is also shown. All graphs are on the same scale to facilitate comparison. Columns correspond to clusters and rows to recording sites.</p>
+</div>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-12" class="outline-2">
+<h2 id="sec-12"><span class="section-number-2">12</span> "Brute force" superposition resolution</h2>
+<div class="outline-text-2" id="text-12">
+
+
+<p>
+We are going to resolve (the most "obvious") superpositions by a "recursive peeling method":
+</p><ol>
+<li>Events are detected and cut from the raw data <i>or from an already peeled version of the data</i>.
+</li>
+<li>The closest center (in term of Euclidean distance) to the event is found&mdash;the jitter is always evaluated and compensated for when the distances are computed.
+</li>
+<li>If the RSS (actual data - best center)\(^2\) is smaller than the squared norm of a cut, the "long cut version" of the best center is subtracted from the data on which detection was performed&mdash;jitter is again compensated for at this stage.
+</li>
+<li>Go back to step 1 or stop. 
+</li>
+</ol>
+
+
+<p>
+In order to get the subtraction of the closest center right, we need to have long enough cuts (remember the caption of the figure explaining how the cut length was set). So we start by that.
+</p>
+
+</div>
+
+<div id="outline-container-12-1" class="outline-3">
+<h3 id="sec-12-1"><span class="section-number-3">12.1</span> Long cuts</h3>
+<div class="outline-text-3" id="text-12-1">
+
+<p>These long cuts&mdash;long enough for waveforms of each neuron on recording site to come back to 0&mdash;are going to be used to resolve superpositions. The components of the list <code>ujL</code> have an <i>attribute</i>, <code>delta</code>, that contains the estimated jitter required to make the cluster center match the events. Here we are going to make the events match the center:
+</p>
+
+
+<pre class="example">ujLL &lt;- lapply(1:10,
+              function(cIdx) {
+                s &lt;- sp1E[goodEvts][c10b==cIdx]
+                δ &lt;- attr(ujL[[cIdx]],"delta")
+                sapply(seq(along=s),
+                       function(eIdx)
+                       shiftEvent(s[eIdx],-δ[eIdx],lD,49,80,"sinc")
+                       )}
+              )
+</pre>
+
+
+<p>
+We can quickly check that our cuts are long enough by plotting, for each cluster, the center (with the waveforms on the four recording sites one after the other) together with the <code>MAD</code>.
+</p>
+
+
+<div id="fig-cuts-are-long-enough" class="figure">
+<p><img src="img/cuts-are-long-enough.png"  alt="img/cuts-are-long-enough.png" /></p>
+<p>The cluster centers (black) and associated <i>MAD</i> (red) built from the long cuts (130 sampling points long). The left column shows, from top to bottom, clusters 1 to 5 and the right column shows, from top to bottom, clusters 6 to 10. The waveforms on each of the fours recording sites are displayed one after the other, separated by vertical doted lines. The different sub-plots have the same horizontal scale but different vertical scales. To compare amplitude one can use the fact that the vertical distance between the null horizontal line and the MAD (red) line is constant.</p>
+</div>
+
+<p>
+Using, as usual, the median of the cuts as an estimate of the clusters' centers, we build functional estimates of the "long" centers:
+</p>
+
+
+<pre class="example">idealEvtFctList &lt;- lapply(ujLL,
+                          function(m) {
+                            m &lt;- matrix(apply(m,1,median),nc=4)
+                            lapply(1:4,
+                                   function(i) sincfun(-49:80,m[,i]))
+                          })
+</pre>
+
+
+</div>
+
+</div>
+
+<div id="outline-container-12-2" class="outline-3">
+<h3 id="sec-12-2"><span class="section-number-3">12.2</span> Peeling process</h3>
+<div class="outline-text-3" id="text-12-2">
+
+
+<p>
+To implement the peeling procedure we must use a function, <code>eventsMatched</code>, which takes cuts and compare them to each cluster center, evaluating and compensating for the jitter at the same time. The function returns an "enhanced" matrix, an object of class <code>eventsMatched</code>; class for which we also created several methods: <code>[.eventsMatched</code>, <code>predict.eventsMatched</code>, <code>print.eventsMatched</code>, <code>residuals.eventsMatched</code>.
+</p>
+<p>
+We apply <code>eventsMatched</code> function to <i>every cut</i> in <code>evts</code> ("good" and "bad" ones on the <i>whole trace</i>):
+</p>
+
+
+<pre class="example">evts &lt;- mkEvents(sp1,lD,14,30)
+evtsMatch1 &lt;- eventsMatched(evts,
+                            templateList=idealEvtFctList,
+                            interval=c(-5,5))
+</pre>
+
+
+
+</div>
+
+<div id="outline-container-12-2-1" class="outline-4">
+<h4 id="sec-12-2-1"><span class="section-number-4">12.2.1</span> <code>onePerClique</code></h4>
+<div class="outline-text-4" id="text-12-2-1">
+
+<p>We are going to try to get an as unambiguous peeling as possible by subtracting only one template at a time when potentially strong overlaps are present. To this end we will define <i>cliques</i>, groups of events where the inter event interval within the group is smaller than some critical length. For each clique, every possible template (selected by <code>eventsMatched</code>) is subtracted "alone". The RSS is computed after each subtraction and the template giving the smallest RSS is selected.
+</p>
+<p>
+Our initial <code>eventsMatched</code> object, <code>evtsMatch1</code> contains:
+</p>
+
+
+<pre class="example">dim(evtsMatch1)[2]
+</pre>
+
+
+<pre class="example">
+[1] 1769
+</pre>
+
+
+<p>
+events. If we keep only one event per clique:
+</p>
+
+
+<pre class="example">evtsMatch1.select &lt;- onePerClique(evtsMatch1)
+</pre>
+
+
+<p>
+we are left with:
+</p>
+
+
+<pre class="example">length(evtsMatch1.select)
+</pre>
+
+
+<pre class="example">
+[1] 1447
+</pre>
+
+
+<p>
+events.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-12-2-2" class="outline-4">
+<h4 id="sec-12-2-2"><span class="section-number-4">12.2.2</span> <code>predict</code> and <code>residual</code> methods</h4>
+<div class="outline-text-4" id="text-12-2-2">
+
+<p><i>Method</i> <code>predict</code> for <code>eventsMatched</code> objects generates the ideal (predicted) waveform as a linear summation of every event based on the template associated with its origin, taking the jitter into account. <i>Method</i> <code>residual</code> subtracts the prediction from the data.
+</p>
+<p>
+We get the first "peeling" of our data with:
+</p>
+
+
+<pre class="example">lD1 &lt;- residuals(evtsMatch1[,evtsMatch1.select])
+</pre>
+
+
+<p>
+One way to check the importance of jitter correction in the peeling process is to repeat this subtraction with a modified version of <code>evtsMatch1</code> where the <code>δ</code> row has been set to 0:
+</p>
+
+
+<pre class="example">evtsMatch1bis &lt;- evtsMatch1
+evtsMatch1bis["δx1000",] &lt;- 0
+lD1bis &lt;- residuals(evtsMatch1bis[,evtsMatch1.select])
+</pre>
+
+
+<p>
+A comparison of the traces: raw data (<code>lD</code>), peeled data without jitter correction (<code>lD1bis</code>) and peeled data with jitter correction (<code>lD1</code>) for the second recording site is shown on Fig.~<a href="#fig-jitter-correction-effect">jitter-correction-effect</a>.
+</p>
+
+
+<div id="fig-jitter-correction-effect" class="figure">
+<p><img src="img/jitter-correction-effect.png"  alt="img/jitter-correction-effect.png" /></p>
+<p>100 ms of data from the first recording site (between sec. 0.8 and 0.9). Top row, actual data; middle row, peeled data without jitter correction; bottom row, peeled data with jitter correction. The effect of uncompensated for jitter is clear for the first large spike. Notice that the ordinate scales is not uniform.</p>
+</div>
+
+<p>
+In fact the easiest way to explore the quality of the peeling procedure is to use the interactive <code>explore</code> function with:
+</p>
+
+
+<pre class="example">explore(sp1,cbind(lD[,1],lD1bis[,1],lD1[,1]),col=c("black","grey","black"))
+</pre>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-12-3" class="outline-3">
+<h3 id="sec-12-3"><span class="section-number-3">12.3</span> Peeling iterations</h3>
+<div class="outline-text-3" id="text-12-3">
+
+
+<p>
+We now take <code>lD1</code> as "raw" data and we repeat a peeling iteration. First with an events' detection <i>using the same detection threshold as we did with the actual raw data</i>:
+</p>
+
+
+<pre class="example">lDf &lt;- filter(lD1,rep(1,3)/3)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+(sp2 &lt;- peaks(apply(lDfr,1,sum),15))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 481 events. 
+  Mean inter event interval: 621.34 sampling points, corresponding SD: 742.8 sampling points 
+  Smallest and largest inter event intervals: 8 and 5656 sampling points.
+</pre>
+
+
+
+
+<p>
+Notice that we changed <code>lD</code> to <code>lD1</code> in our <code>filter</code> call and that <i>we did not recompute</i> <code>lDf.mad</code>. The resulting <code>eventsPos</code> object contains much fewer events (<code>[1] 481</code> ) than the previous one (<code>[1] 1769</code>). We cut the events:
+</p>
+
+
+<pre class="example">evts1 &lt;- mkEvents(sp2,lD1,14,30)
+</pre>
+
+
+<p>
+We "match" the events:
+</p>
+
+
+<pre class="example">evtsMatch2 &lt;- eventsMatched(evts1,
+                            templateList=idealEvtFctList,
+                            interval=c(-5,5))
+</pre>
+
+
+<p>
+We keep only one event per clique:
+</p>
+
+
+<pre class="example">evtsMatch2.select &lt;- onePerClique(evtsMatch2)
+</pre>
+
+
+<p>
+We use <code>residuals</code>:
+</p>
+
+
+<pre class="example">lD2 &lt;- residuals(evtsMatch2[,evtsMatch2.select])
+</pre>
+
+
+<p>
+Here again, exploring interactively the results is a good idea:
+</p>
+
+
+<pre class="example">explore(sp2,cbind(lD[,1],lD1[,1],lD2[,1]),col=c("black","grey","black"))
+</pre>
+
+
+<p>
+We see that some spikes are left so we run another iteration:
+</p>
+
+
+<pre class="example">lDf &lt;- filter(lD2,rep(1,3)/3)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+(sp3 &lt;- peaks(apply(lDfr,1,sum),15))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 150 events. 
+  Mean inter event interval: 1977.6 sampling points, corresponding SD: 2492 sampling points 
+  Smallest and largest inter event intervals: 8 and 17410 sampling points.
+</pre>
+
+
+<p>
+The number of detected events keeps decreasing (that's good!).
+</p>
+
+
+
+
+<pre class="example">evts2 &lt;- mkEvents(sp3,lD2,14,30)
+evtsMatch3 &lt;- eventsMatched(evts2,
+                            templateList=idealEvtFctList,
+                            interval=c(-5,5))
+evtsMatch3.select &lt;- onePerClique(evtsMatch3)
+lD3 &lt;- residuals(evtsMatch3[,evtsMatch3.select])
+</pre>
+
+
+<p>
+A quick interactive exploration with:
+</p>
+
+
+<pre class="example">explore(sp2,cbind(lD[,1],lD1[,1],lD2[,1],lD3[,1]),col=c("black","grey","black","grey"))
+</pre>
+
+<p>
+shows that the improvements are still obtained so we go for another round:
+</p>
+
+
+<pre class="example">lDf &lt;- filter(lD3,rep(1,3)/3)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+(sp4 &lt;- peaks(apply(lDfr,1,sum),15))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 62 events. 
+  Mean inter event interval: 4734.8 sampling points, corresponding SD: 5401 sampling points 
+  Smallest and largest inter event intervals: 9 and 27609 sampling points.
+</pre>
+
+
+<p>
+The number of detected events keeps decreasing (that's good!).
+</p>
+
+
+
+
+<pre class="example">evts3 &lt;- mkEvents(sp4,lD3,14,30)
+evtsMatch4 &lt;- eventsMatched(evts3,
+                            templateList=idealEvtFctList,
+                            interval=c(-5,5))
+evtsMatch4.select &lt;- onePerClique(evtsMatch4)
+lD4 &lt;- residuals(evtsMatch4[,evtsMatch4.select])
+</pre>
+
+
+
+<pre class="example">lDf &lt;- filter(lD4,rep(1,3)/3)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+(sp5 &lt;- peaks(apply(lDfr,1,sum),15))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 31 events. 
+  Mean inter event interval: 9387.57 sampling points, corresponding SD: 12844.54 sampling points 
+  Smallest and largest inter event intervals: 9 and 50760 sampling points.
+</pre>
+
+
+<p>
+The number of detected events keeps decreasing (that's good!).
+</p>
+
+
+
+
+<pre class="example">evts4 &lt;- mkEvents(sp5,lD4,14,30)
+evtsMatch5 &lt;- eventsMatched(evts4,
+                            templateList=idealEvtFctList,
+                            interval=c(-5,5))
+evtsMatch5.select &lt;- onePerClique(evtsMatch5)
+lD5 &lt;- residuals(evtsMatch5[,evtsMatch5.select])
+</pre>
+
+
+
+<pre class="example">lDf &lt;- filter(lD5,rep(1,3)/3)
+lDf &lt;- t(t(lDf)/lDf.mad)
+thrs &lt;- c(4,4,4,4)
+bellow.thrs &lt;- t(t(lDf) &lt; thrs)
+lDfr &lt;- lDf
+lDfr[bellow.thrs] &lt;- 0
+remove(lDf)
+(sp6 &lt;- peaks(apply(lDfr,1,sum),15))
+</pre>
+
+
+<pre class="example">
+
+eventsPos object with indexes of 18 events. 
+  Mean inter event interval: 15721.59 sampling points, corresponding SD: 17896.59 sampling points 
+  Smallest and largest inter event intervals: 10 and 50741 sampling points.
+</pre>
+
+
+
+<p>
+Since there is not much change anymore, we stop here.
+The progression of the peeling is illustrated on Fig. <a href="#fig-good-peeling">good-peeling</a> and <a href="#fig-bad-peeling">bad-peeling</a>.
+</p>
+
+
+
+<div id="fig-good-peeling" class="figure">
+<p><img src="img/good-peeling.png"  alt="img/good-peeling.png" /></p>
+<p>An exemple of "good" peeling job (that's the general case). 100 ms of data from the four recording sites are shown (between sec. 3.9 and sec. 4.0). Each panel shows from top to bottom 5 successive peeling iterations starting with the raw data. A superposition of 3 spikes is seen to be resolved mainly on sites 2 and 4 (close to the end of displayed data). Same scale for every trace.</p>
+</div>
+
+
+
+
+
+<div id="fig-bad-peeling" class="figure">
+<p><img src="img/bad-peeling.png"  alt="img/bad-peeling.png" /></p>
+<p>An exemple of "bad" peeling job. 100 ms of data from the four recording sites are shown (between sec. 0.9 and sec. 1.0). Each panel shows from top to bottom 5 successive peeling iterations starting with the raw data. Here, the large superposition close to the end of the displayed data is no resolved. Same scale for every trace.</p>
+</div>
+
+
+<p>
+It's time to remove extra "copies" of the original data:
+</p>
+
+
+<pre class="example">rm(lD1,lD2,lD3,lD4,lD5)
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-12-4" class="outline-3">
+<h3 id="sec-12-4"><span class="section-number-3">12.4</span> Summurazing the results so far</h3>
+<div class="outline-text-3" id="text-12-4">
+
+<p>In order to get a single "best" classification combining the successive classifications resulting from our individual peeling iterations, we use function <code>fuseEventsMatched</code> which "sticks" two <code>eventsMatched</code> objects together reordering their rows in chronological order:
+</p>
+
+
+<pre class="example">evtsMatch &lt;- fuseEventsMatched(evtsMatch1,
+                               fuseEventsMatched(evtsMatch2,
+                                                 fuseEventsMatched(evtsMatch3,
+                                                                   fuseEventsMatched(evtsMatch4,evtsMatch5))))
+</pre>
+
+
+
+<p>
+We can look at the first 10 elements:
+</p>
+
+
+<pre class="example">evtsMatch[,1:10]
+</pre>
+
+
+<pre class="example">
+          [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
+clusterID    8   10    8   10   10    7    9    8    8     6
+position   282  852 1046 1161 1161 1205 1680 1835 2400  2600
+δx1000    -220 -243 -344  277  249 -244 -162 -151  -14  -484
+</pre>
+
+
+</div>
+</div>
+</div>
+</div>
+
+<div id="postamble">
+<p class="date">Date: 2013-02-27T17:35+0100</p>
+<p class="author">Author: Christophe Pouzat</p>
+<p class="creator"><a href="http://orgmode.org">Org</a> version 7.9.3f with <a href="http://www.gnu.org/software/emacs/">Emacs</a> version 24</p>
+<a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a>
+
+</div>
+</body>
+</html>
